@@ -326,7 +326,7 @@ class Transformer(nn.Module):
             ls_init_value: float = None,
             act_layer: Callable = nn.GELU,
             norm_layer: Callable = LayerNorm,
-            batch_first: bool = True,
+            batch_first: bool = False,
     ):
         super().__init__()
         self.width = width
@@ -353,16 +353,12 @@ class Transformer(nn.Module):
         return self.resblocks[0].mlp.c_fc.weight.dtype
 
     def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None):
-        if not self.batch_first:
-            x = x.transpose(0, 1).contiguous()    # NLD -> LND
         for r in self.resblocks:
             if self.grad_checkpointing and not torch.jit.is_scripting():
                 # TODO: handle kwargs https://github.com/pytorch/pytorch/issues/79887#issuecomment-1161758372
                 x = checkpoint(r, x, None, None, attn_mask)
             else:
                 x = r(x, attn_mask=attn_mask)
-        if not self.batch_first:
-            x = x.transpose(0, 1)    # LND -> NLD
         return x
 
 
@@ -924,3 +920,218 @@ class MultimodalTransformer(Transformer):
     @torch.jit.ignore
     def set_grad_checkpointing(self, enable=True):
         self.grad_checkpointing = enable
+
+
+class VisionEncoder(nn.Module):
+    output_tokens: torch.jit.Final[bool]
+
+    def __init__(
+            self,
+            image_size: int,
+            patch_size: int,
+            width: int,
+            output_dim: int = 512,
+            patch_dropout: float = 0.,
+            input_patchnorm: bool = False,
+            norm_layer: Callable = LayerNorm,
+            output_tokens: bool = False
+    ):
+        super().__init__()
+        self.output_tokens = output_tokens
+        image_height, image_width = self.image_size = to_2tuple(image_size)
+        patch_height, patch_width = self.patch_size = to_2tuple(patch_size)
+        self.grid_size = (image_height // patch_height, image_width // patch_width)
+        self.output_dim = output_dim
+
+        # whether to layernorm each patch, as done in dual patchnorm paper - https://arxiv.org/abs/2302.01327v1
+        self.input_patchnorm = input_patchnorm
+
+        if input_patchnorm:
+            patch_input_dim = patch_height * patch_width * 3
+            self.patchnorm_pre_ln = LayerNorm(patch_input_dim)
+            self.conv1 = nn.Linear(patch_input_dim, width)
+        else:
+            self.patchnorm_pre_ln = nn.Identity()
+            self.conv1 = nn.Conv2d(in_channels=3, out_channels=width, kernel_size=patch_size, stride=patch_size, bias=False)
+
+        # class embeddings and positional embeddings
+        scale = width ** -0.5
+        self.class_embedding = nn.Parameter(scale * torch.randn(width))
+        self.positional_embedding = nn.Parameter(scale * torch.randn(self.grid_size[0] * self.grid_size[1] + 1, width))
+
+        # setting a patch_dropout of 0. would mean it is disabled and this function would be the identity fn
+        self.patch_dropout = PatchDropout(patch_dropout) if patch_dropout > 0. else nn.Identity()
+
+        self.ln_pre = norm_layer(width)
+        self.init_parameters()
+
+    def lock(self, unlocked_groups=0, freeze_bn_stats=False):
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if unlocked_groups != 0:
+            groups = [
+                [
+                    self.conv1,
+                    self.class_embedding,
+                    self.positional_embedding,
+                    self.ln_pre,
+                ],
+                *self.transformer.resblocks[:-1],
+                [
+                    self.transformer.resblocks[-1],
+                    self.ln_post,
+                ],
+                self.proj,
+            ]
+
+            def _unlock(x):
+                if isinstance(x, Sequence):
+                    for g in x:
+                        _unlock(g)
+                else:
+                    if isinstance(x, torch.nn.Parameter):
+                        x.requires_grad = True
+                    else:
+                        for p in x.parameters():
+                            p.requires_grad = True
+
+            _unlock(groups[-unlocked_groups:])
+
+    def init_parameters(self):
+        # FIXME OpenAI CLIP did not define an init for the VisualTransformer
+        # TODO experiment if default PyTorch init, below, or alternate init is best.
+
+        # nn.init.normal_(self.class_embedding, std=self.scale)
+        # nn.init.normal_(self.positional_embedding, std=self.scale)
+        #
+        # proj_std = (self.transformer.width ** -0.5) * ((2 * self.transformer.layers) ** -0.5)
+        # attn_std = self.transformer.width ** -0.5
+        # fc_std = (2 * self.transformer.width) ** -0.5
+        # for block in self.transformer.resblocks:
+        #     nn.init.normal_(block.attn.in_proj_weight, std=attn_std)
+        #     nn.init.normal_(block.attn.out_proj.weight, std=proj_std)
+        #     nn.init.normal_(block.mlp.c_fc.weight, std=fc_std)
+        #     nn.init.normal_(block.mlp.c_proj.weight, std=proj_std)
+        #
+        # if self.text_projection is not None:
+        #     nn.init.normal_(self.text_projection, std=self.scale)
+        pass
+
+    @torch.jit.ignore
+    def set_grad_checkpointing(self, enable=True):
+        self.transformer.grad_checkpointing = enable
+
+    def _global_pool(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        if self.global_average_pool:
+            return x.mean(dim=1), x
+        else:
+            return x[:, 0], x[:, 1:]
+
+    def forward(self, x: torch.Tensor):
+
+        # to patches - whether to use dual patchnorm - https://arxiv.org/abs/2302.01327v1
+        if self.input_patchnorm:
+            # einops - rearrange(x, 'b c (h p1) (w p2) -> b (h w) (c p1 p2)')
+            x = x.reshape(x.shape[0], x.shape[1], self.grid_size[0], self.patch_size[0], self.grid_size[1], self.patch_size[1])
+            x = x.permute(0, 2, 4, 1, 3, 5)
+            x = x.reshape(x.shape[0], self.grid_size[0] * self.grid_size[1], -1)
+            x = self.patchnorm_pre_ln(x)
+            x = self.conv1(x)
+        else:
+            x = self.conv1(x)  # shape = [*, width, grid, grid]
+            x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
+            x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
+
+        # class embeddings and positional embeddings
+        x = torch.cat(
+            [self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
+             x], dim=1)  # shape = [*, grid ** 2 + 1, width]
+        x = x + self.positional_embedding.to(x.dtype)
+
+        # a patch_dropout of 0. would mean it is disabled and this function would do nothing but return what was passed in
+        x = self.patch_dropout(x)
+        x = self.ln_pre(x)
+        return x
+
+
+class TextEncoder(nn.Module):
+    output_tokens: torch.jit.Final[bool]
+
+    def __init__(
+            self,
+            context_length: int = 77,
+            vocab_size: int = 49408,
+            width: int = 512,
+            output_dim: int = 512,
+            embed_cls: bool = False,
+            pad_id: int = 0,
+            output_tokens: bool = False,
+            cast_dtype: torch.dtype = None,
+    ):
+        super().__init__()
+        self.output_tokens = output_tokens
+        self.num_pos = self.context_length = context_length
+        self.vocab_size = vocab_size
+        self.width = width
+        self.output_dim = output_dim
+        self.pad_id = pad_id
+
+        # self.text_projection = nn.Parameter(torch.empty(width, output_dim))
+
+        if embed_cls:
+            self.cls_emb = nn.Parameter(torch.empty(width))
+            self.num_pos += 1
+        else:
+            self.cls_emb = None
+
+        self.token_embedding = nn.Embedding(vocab_size, width)
+        self.positional_embedding = nn.Parameter(torch.empty(self.num_pos, width))
+
+        self.register_buffer('attn_mask', self.build_attention_mask(), persistent=False)
+
+        self.cast_dtype = cast_dtype
+
+        self.init_parameters()
+
+    def init_parameters(self):
+        nn.init.normal_(self.token_embedding.weight, std=0.02)
+        nn.init.normal_(self.positional_embedding, std=0.01)
+        if self.cls_emb is not None:
+            nn.init.normal_(self.cls_emb, std=0.01)
+
+    def build_attention_mask(self):
+        # lazily create causal attention mask, with full attention between the tokens
+        # pytorch uses additive attention mask; fill with -inf
+        mask = torch.empty(self.num_pos, self.num_pos)
+        mask.fill_(float("-inf"))
+        mask.triu_(1)  # zero out the lower diagonal
+        return mask
+
+    def build_cls_mask(self, text, cast_dtype: torch.dtype):
+        cls_mask = (text != self.pad_id).unsqueeze(1)
+        cls_mask = F.pad(cls_mask, (1, 0, cls_mask.shape[2], 0), value=1.0)
+        additive_mask = torch.empty(cls_mask.shape, dtype=cast_dtype, device=cls_mask.device)
+        additive_mask.fill_(0)
+        additive_mask.masked_fill_(~cls_mask, float("-inf"))
+        additive_mask = torch.repeat_interleave(additive_mask, self.heads, 0)
+        return additive_mask
+
+    def _repeat(self, t, N: int):
+        return t.reshape(1, 1, -1).repeat(N, 1, 1)
+
+    def forward(self, text):
+        # cast_dtype = self.transformer.get_cast_dtype()
+        cast_dtype = self.cast_dtype
+        seq_len = text.shape[1]
+
+        x = self.token_embedding(text).to(cast_dtype)  # [batch_size, n_ctx, d_model]
+        attn_mask = self.attn_mask
+        if self.cls_emb is not None:
+            seq_len += 1
+            x = torch.cat([x, self._repeat(self.cls_emb, x.shape[0])], dim=1)
+            cls_mask = self.build_cls_mask(text, cast_dtype)
+            attn_mask = attn_mask[None, :seq_len, :seq_len] + cls_mask[:, :seq_len, :seq_len]
+
+        x = x + self.positional_embedding[:seq_len].to(cast_dtype)
+        return x

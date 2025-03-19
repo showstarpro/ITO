@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch import nn
+from torch import nn, randn
 from torch.utils.checkpoint import checkpoint
 from functools import partial
 
@@ -19,11 +19,13 @@ from .hf_model import HFTextEncoder
 from .modified_resnet import ModifiedResNet
 from .timm_model import TimmModel
 from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionTransformer, TextTransformer,\
-    text_global_pool
+    text_global_pool, VisionEncoder, TextEncoder
 from .utils import to_2tuple
 
 
 from transformers import CLIPConfig, CLIPModel
+from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionEncoder, TextEncoder, Transformer
+from .utils import to_2tuple
 
 # Define a new CLIP configuration
 config = CLIPConfig(
@@ -75,18 +77,18 @@ class CLIPVisionCfg:
     # act_kwargs: Optional[dict] = None
     # norm_kwargs: Optional[dict] = None
 
-    # timm_model_name: Optional[str] = None  # a valid model name overrides layers, width, patch_size
-    # timm_model_pretrained: bool = False  # use (imagenet) pretrained weights for named model
-    # timm_pool: str = 'avg'  # feature pooling for timm model ('abs_attn', 'rot_attn', 'avg', '')
-    # timm_proj: str = 'linear'  # linear projection for timm model output ('linear', 'mlp', '')
-    # timm_proj_bias: bool = False  # enable bias final projection
-    # timm_drop: float = 0.  # head dropout
-    # timm_drop_path: Optional[float] = None  # backbone stochastic depth
+    timm_model_name: Optional[str] = None  # a valid model name overrides layers, width, patch_size
+    timm_model_pretrained: bool = False  # use (imagenet) pretrained weights for named model
+    timm_pool: str = 'avg'  # feature pooling for timm model ('abs_attn', 'rot_attn', 'avg', '')
+    timm_proj: str = 'linear'  # linear projection for timm model output ('linear', 'mlp', '')
+    timm_proj_bias: bool = False  # enable bias final projection
+    timm_drop: float = 0.  # head dropout
+    timm_drop_path: Optional[float] = None  # backbone stochastic depth
 
 
 @dataclass
 class CLIPTextCfg:
-context_length: int = 77
+    context_length: int = 77
     vocab_size: int = 49408
     width: int = 512
     heads: int = 8
@@ -118,6 +120,11 @@ def get_input_dtype(precision: str):
         input_dtype = torch.float16
     return input_dtype
 
+def _global_pool(x: torch.Tensor, global_average_pool:bool=False) -> Tuple[torch.Tensor, torch.Tensor]:
+    if global_average_pool:
+        return x.mean(dim=1), x
+    else:
+        return x[:, 0], x[:, 1:]
 
 def _build_vision_tower(
         embed_dim: int,
@@ -158,30 +165,15 @@ def _build_vision_tower(
     else:
         vision_heads = vision_cfg.width // vision_cfg.head_width
         norm_layer = LayerNormFp32 if cast_dtype in (torch.float16, torch.bfloat16) else LayerNorm
-        if vision_cfg.norm_kwargs:
-            norm_layer = partial(norm_layer, **vision_cfg.norm_kwargs)
-        if vision_cfg.act_kwargs is not None:
-            act_layer = partial(act_layer, **vision_cfg.act_kwargs)
 
-        visual = VisionTransformer(
+        visual = VisionEncoder(
             image_size=vision_cfg.image_size,
             patch_size=vision_cfg.patch_size,
             width=vision_cfg.width,
-            layers=vision_cfg.layers,
-            heads=vision_heads,
-            mlp_ratio=vision_cfg.mlp_ratio,
-            ls_init_value=vision_cfg.ls_init_value,
             patch_dropout=vision_cfg.patch_dropout,
-            attentional_pool=vision_cfg.attentional_pool,
-            attn_pooler_queries=vision_cfg.attn_pooler_queries,
-            attn_pooler_heads=vision_cfg.attn_pooler_heads,
-            pos_embed_type=vision_cfg.pos_embed_type,
-            no_ln_pre=vision_cfg.no_ln_pre,
-            final_ln_after_pool=vision_cfg.final_ln_after_pool,
-            pool_type=vision_cfg.pool_type,
+            input_patchnorm=vision_cfg.input_patchnorm,
             output_tokens=vision_cfg.output_tokens,
             output_dim=embed_dim,
-            act_layer=act_layer,
             norm_layer=norm_layer,
         )
 
@@ -197,42 +189,16 @@ def _build_text_tower(
     if isinstance(text_cfg, dict):
         text_cfg = CLIPTextCfg(**text_cfg)
 
-    if text_cfg.hf_model_name:
-        text = HFTextEncoder(
-            text_cfg.hf_model_name,
-            output_dim=embed_dim,
-            proj_type=text_cfg.hf_proj_type,
-            pooler_type=text_cfg.hf_pooler_type,
-            pretrained=text_cfg.hf_model_pretrained,
-            output_tokens=text_cfg.output_tokens,
-        )
-    else:
-        act_layer = QuickGELU if quick_gelu else nn.GELU
-        norm_layer = LayerNormFp32 if cast_dtype in (torch.float16, torch.bfloat16) else LayerNorm
-        if text_cfg.norm_kwargs:
-            norm_layer = partial(norm_layer, **text_cfg.norm_kwargs)
-        if text_cfg.act_kwargs is not None:
-            act_layer = partial(act_layer, **text_cfg.act_kwargs)
-
-        text = TextTransformer(
+    text = TextEncoder(
             context_length=text_cfg.context_length,
             vocab_size=text_cfg.vocab_size,
             width=text_cfg.width,
-            heads=text_cfg.heads,
-            layers=text_cfg.layers,
-            mlp_ratio=text_cfg.mlp_ratio,
-            ls_init_value=text_cfg.ls_init_value,
             output_dim=embed_dim,
             embed_cls=text_cfg.embed_cls,
-            no_causal_mask=text_cfg.no_causal_mask,
-            pad_id=text_cfg.pad_id,
-            pool_type=text_cfg.pool_type,
-            proj_type=text_cfg.proj_type,
-            proj_bias=text_cfg.proj_bias,
             output_tokens=text_cfg.output_tokens,
-            act_layer=act_layer,
-            norm_layer=norm_layer,
-        )
+            pad_id=text_cfg.pad_id,
+            cast_dtype=cast_dtype
+            )
     return text
 
 
@@ -245,36 +211,63 @@ class CLIP(nn.Module):
             vision_cfg: CLIPVisionCfg,
             text_cfg: CLIPTextCfg,
             quick_gelu: bool = False,
-            init_logit_scale: float = np.log(1 / 0.07),
-            init_logit_bias: Optional[float] = None,
-            nonscalar_logit_scale: bool = False,
             cast_dtype: Optional[torch.dtype] = None,
             output_dict: bool = False,
     ):
         super().__init__()
         self.output_dict = output_dict
 
-        model = CLIPModel(config)
-        # self.visual = model.vision_model
+        if isinstance(text_cfg, dict):
+            text_cfg = CLIPTextCfg(**text_cfg)
+        if isinstance(vision_cfg, dict):
+            vision_cfg = CLIPVisionCfg(**vision_cfg)
+
+        assert vision_cfg.width == text_cfg.width, "vision_width != text_width"
+        assert vision_cfg.layers == text_cfg.layers, "vision_layers != text_layers"
+        vision_heads = vision_cfg.width // vision_cfg.head_width
+        assert vision_heads == text_cfg.heads, "vision_heads != text_heads"
+        assert vision_cfg.ls_init_value == text_cfg.ls_init_value, "vision_ls_init_value != text_ls_init_value"
+
+        act_layer = QuickGELU if quick_gelu else nn.GELU
+        norm_layer = LayerNormFp32 if cast_dtype in (torch.float16, torch.bfloat16) else LayerNorm
+        self.ln_post = norm_layer(vision_cfg.width)
+        
+        self.transformer = Transformer(
+            vision_cfg.width,
+            vision_cfg.layers,
+            text_cfg.heads,
+            vision_cfg.mlp_ratio,
+            ls_init_value=text_cfg.ls_init_value,
+            act_layer=act_layer,
+            norm_layer=norm_layer,
+            batch_first=False
+        )
+
+        cast_dtype = self.transformer.get_cast_dtype()
+
         self.visual = _build_vision_tower(embed_dim, vision_cfg, quick_gelu, cast_dtype)
 
-        text = _build_text_tower(embed_dim, text_cfg, quick_gelu, cast_dtype)
-        self.transformer = text.transformer
-        self.context_length = text.context_length
-        self.vocab_size = text.vocab_size
-        self.token_embedding = text.token_embedding
-        self.positional_embedding = text.positional_embedding
-        self.ln_final = text.ln_final
-        self.text_projection = text.text_projection
-        self.text_pool_type = text.pool_type
-        self.register_buffer('attn_mask', text.attn_mask, persistent=False)
+        self.text = _build_text_tower(embed_dim, text_cfg, quick_gelu, cast_dtype)
 
-        lshape = [1] if nonscalar_logit_scale else []
-        self.logit_scale = nn.Parameter(torch.ones(lshape) * init_logit_scale)
-        if init_logit_bias is not None:
-            self.logit_bias = nn.Parameter(torch.ones(lshape) * init_logit_bias)
-        else:
-            self.logit_bias = None
+        scale = vision_cfg.width ** -0.5
+        self.projection = nn.Parameter(scale * randn(vision_cfg.width, embed_dim))
+
+        self.register_buffer('attn_mask', self.text.attn_mask, persistent=False)
+
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.init_parameters()
+
+    def init_parameters(self):
+        proj_std = (self.transformer.width ** -0.5) * ((2 * self.transformer.layers) ** -0.5)
+        attn_std = self.transformer.width ** -0.5
+        fc_std = (2 * self.transformer.width) ** -0.5
+        for block in self.transformer.resblocks:
+            nn.init.normal_(block.attn.in_proj_weight, std=attn_std)
+            nn.init.normal_(block.attn.out_proj.weight, std=proj_std)
+            nn.init.normal_(block.mlp.c_fc.weight, std=fc_std)
+            nn.init.normal_(block.mlp.c_proj.weight, std=proj_std)
+        nn.init.normal_(self.projection, std=self.transformer.width ** -0.5)
+
 
     def lock_image_tower(self, unlocked_groups=0, freeze_bn_stats=False):
         # lock image tower as per LiT - https://arxiv.org/abs/2111.07991
@@ -285,34 +278,38 @@ class CLIP(nn.Module):
         self.visual.set_grad_checkpointing(enable)
         self.transformer.grad_checkpointing = enable
 
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        # for timm optimizers, 1d params like logit_scale, logit_bias, ln/bn scale, biases are excluded by default
-        no_wd = {'positional_embedding'}
-        if hasattr(self.visual, 'no_weight_decay'):
-            for n in self.visual.no_weight_decay():
-                no_wd.add('visual.' + n)
-        return no_wd
+    # @torch.jit.ignore
+    # def no_weight_decay(self):
+    #     # for timm optimizers, 1d params like logit_scale, logit_bias, ln/bn scale, biases are excluded by default
+    #     no_wd = {'positional_embedding'}
+    #     if hasattr(self.visual, 'no_weight_decay'):
+    #         for n in self.visual.no_weight_decay():
+    #             no_wd.add('visual.' + n)
+    #     return no_wd
 
     def encode_image(self, image, normalize: bool = False):
-        features = self.visual(image)
+        x = self.visual(image)
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = self.transformer(x)
+        x = x.permute(1, 0, 2)  # LND -> NLD
+        pooled, tokens = _global_pool(x)
+        features = self.ln_post(pooled)
+        features = features @ self.projection
+
         return F.normalize(features, dim=-1) if normalize else features
 
     def encode_text(self, text, normalize: bool = False):
-        cast_dtype = self.transformer.get_cast_dtype()
+        # x = self.token_embedding(text).to(cast_dtype)  # [batch_size, n_ctx, d_model]
 
-        x = self.token_embedding(text).to(cast_dtype)  # [batch_size, n_ctx, d_model]
-
-        x = x + self.positional_embedding.to(cast_dtype)
+        # x = x + self.positional_embedding.to(cast_dtype)
+        x = self.text(text)
+        x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.transformer(x, attn_mask=self.attn_mask)
-        x = self.ln_final(x)  # [batch_size, n_ctx, transformer.width]
-        x, _ = text_global_pool(x, text, self.text_pool_type)
-        if self.text_projection is not None:
-            if isinstance(self.text_projection, nn.Linear):
-                x = self.text_projection(x)
-            else:
-                x = x @ self.text_projection
-
+        x = x.permute(1, 0, 2)  # LND -> NLD
+        x = self.ln_post(x)
+        #x = self.ln_final(x)  # [batch_size, n_ctx, transformer.width]
+        # take features from the eot embedding (eot_token is the highest number in each sequence)
+        x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.projection
         return F.normalize(x, dim=-1) if normalize else x
 
     def get_logits(self, image, text):
@@ -333,17 +330,11 @@ class CLIP(nn.Module):
         text_features = self.encode_text(text, normalize=True) if text is not None else None
 
         if self.output_dict:
-            out_dict = {
+            return {
                 "image_features": image_features,
                 "text_features": text_features,
                 "logit_scale": self.logit_scale.exp()
             }
-            if self.logit_bias is not None:
-                out_dict['logit_bias'] = self.logit_bias
-            return out_dict
-
-        if self.logit_bias is not None:
-            return image_features, text_features, self.logit_scale.exp(), self.logit_bias
         return image_features, text_features, self.logit_scale.exp()
 
 

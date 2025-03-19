@@ -231,6 +231,7 @@ def create_model(
         output_dict: Optional[bool] = None,
         require_pretrained: bool = False,
         load_weights_only: bool = True,
+        align: bool = False,
         **model_kwargs,
 ):
     """Creates and configures a contrastive vision-language model.
@@ -480,6 +481,7 @@ def create_model_and_transforms(
         cache_dir: Optional[str] = None,
         output_dict: Optional[bool] = None,
         load_weights_only: bool = True,
+        align: bool = False,
         **model_kwargs,
 ):
     force_preprocess_cfg = merge_preprocess_kwargs(
@@ -506,6 +508,7 @@ def create_model_and_transforms(
         cache_dir=cache_dir,
         output_dict=output_dict,
         load_weights_only=load_weights_only,
+        align=align,
         **model_kwargs,
     )
 
