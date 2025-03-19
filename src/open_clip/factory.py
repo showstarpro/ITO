@@ -182,32 +182,32 @@ def load_checkpoint(
     # state_dict = load_state_dict(checkpoint_path, device=device, weights_only=weights_only)
     state_dict = load_state_dict(checkpoint_path, device=device, weights_only=False)
 
-    # Detect & convert 3rd party state_dicts -> open_clip
-    state_dict = convert_state_dict(model, state_dict)
+    # # Detect & convert 3rd party state_dicts -> open_clip
+    # state_dict = convert_state_dict(model, state_dict)
 
     # Detect old format and make compatible with new format
     if 'positional_embedding' in state_dict and not hasattr(model, 'positional_embedding'):
         state_dict = convert_to_custom_text_state_dict(state_dict)
 
-    # correct if logit_scale differs in being scaler vs 1d param
-    if 'logit_scale' in state_dict and model.logit_scale.ndim != state_dict['logit_scale'].ndim:
-        state_dict['logit_scale'] = state_dict['logit_scale'].reshape(model.logit_scale.shape)
+    # # correct if logit_scale differs in being scaler vs 1d param
+    # if 'logit_scale' in state_dict and model.logit_scale.ndim != state_dict['logit_scale'].ndim:
+    #     state_dict['logit_scale'] = state_dict['logit_scale'].reshape(model.logit_scale.shape)
 
-    # correct if logit_bias differs in being scaler vs 1d param
-    if 'logit_bias' in state_dict and model.logit_bias.ndim != state_dict['logit_bias'].ndim:
-        state_dict['logit_bias'] = state_dict['logit_bias'].reshape(model.logit_bias.shape)
+    # # correct if logit_bias differs in being scaler vs 1d param
+    # if 'logit_bias' in state_dict and model.logit_bias.ndim != state_dict['logit_bias'].ndim:
+    #     state_dict['logit_bias'] = state_dict['logit_bias'].reshape(model.logit_bias.shape)
 
-    # If loading a non-SigLIP model for SigLIP training. See https://github.com/mlfoundations/open_clip/issues/712
-    if 'logit_bias' not in state_dict and model.logit_bias is not None:
-        state_dict["logit_bias"] = torch.zeros_like(state_dict["logit_scale"])
+    # # If loading a non-SigLIP model for SigLIP training. See https://github.com/mlfoundations/open_clip/issues/712
+    # if 'logit_bias' not in state_dict and model.logit_bias is not None:
+    #     state_dict["logit_bias"] = torch.zeros_like(state_dict["logit_scale"])
 
-    # Certain text transformers no longer expect position_ids after transformers==4.31
-    position_id_key = 'text.transformer.embeddings.position_ids'
-    if position_id_key in state_dict and not hasattr(model, position_id_key):
-        del state_dict[position_id_key]
+    # # Certain text transformers no longer expect position_ids after transformers==4.31
+    # position_id_key = 'text.transformer.embeddings.position_ids'
+    # if position_id_key in state_dict and not hasattr(model, position_id_key):
+    #     del state_dict[position_id_key]
 
     resize_pos_embed(state_dict, model)
-    resize_text_pos_embed(state_dict, model)
+    # resize_text_pos_embed(state_dict, model)
 
     # Finally, load the massaged state_dict into model
     incompatible_keys = model.load_state_dict(state_dict, strict=strict)
