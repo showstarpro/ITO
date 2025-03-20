@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import os
+import io
 import random
 import sys
 import braceexpand
@@ -116,13 +117,29 @@ def get_dataset_size(shards):
 
 
 def get_imagenet(args, preprocess_fns, split):
-    assert split in ["train", "val", "v2"]
+    # assert split in ["train", "val", "v2"]
+    assert split in ["train", "val", "v2", "sketch", "a", "r", "o", "c"]
     is_train = split == "train"
     preprocess_train, preprocess_val = preprocess_fns
 
     if split == "v2":
         from imagenetv2_pytorch import ImageNetV2Dataset
         dataset = ImageNetV2Dataset(location=args.imagenet_v2, transform=preprocess_val)
+    elif split == "sketch":
+        data_path = args.imagenet_sketch
+        dataset = datasets.ImageFolder(data_path, transform=preprocess_val)
+    elif split == "a":
+        data_path = args.imagenet_a
+        dataset = datasets.ImageFolder(data_path, transform=preprocess_val)
+    elif split == "o":
+        data_path = args.imagenet_o
+        dataset = datasets.ImageFolder(data_path, transform=preprocess_val)
+    elif split == "c":
+        data_path = args.imagenet_c
+        dataset = datasets.ImageFolder(data_path, transform=preprocess_val)
+    elif split == "r":
+        data_path = args.imagenet_r
+        dataset = datasets.ImageFolder(data_path, transform=preprocess_val)
     else:
         if is_train:
             data_path = args.imagenet_train
@@ -150,6 +167,104 @@ def get_imagenet(args, preprocess_fns, split):
         sampler = SubsetRandomSampler(np.where(idxs)[0])
     else:
         sampler = None
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        num_workers=args.workers,
+        sampler=sampler,
+    )
+
+    return DataInfo(dataloader=dataloader, sampler=sampler)
+
+
+def get_flowers(args, preprocess_fns, split):
+    assert split in ["train", "test"]
+    preprocess_train, preprocess_val = preprocess_fns
+
+    dataset = datasets.Flowers102(root=args.flowers_102, transform=preprocess_val, download=True, split=split)
+    
+    sampler = None
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        num_workers=args.workers,
+        sampler=sampler,
+    )
+
+    return DataInfo(dataloader=dataloader, sampler=sampler)
+
+
+def get_food(args, preprocess_fns, split):
+    assert split in ["train", "test"]
+    preprocess_train, preprocess_val = preprocess_fns
+
+    dataset = datasets.Food101(root=args.food_101, transform=preprocess_val, download=True, split=split)
+    
+    sampler = None
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        num_workers=args.workers,
+        sampler=sampler,
+    )
+
+    return DataInfo(dataloader=dataloader, sampler=sampler)
+
+# class MultiParquetDataset(Dataset):
+#     def __init__(self, parquet_files, transform=None):
+#         self.parquet_files = parquet_files
+#         self.transform = transform
+#         self.data = pd.concat([pd.read_parquet(f) for f in parquet_files], ignore_index=True)
+
+#     def __len__(self):
+#         return len(self.data)
+
+#     def __getitem__(self, idx):
+#         image_bytes = self.data.iloc[0]['image']['bytes']
+#         label = self.data.iloc[idx]['label']
+#         image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+#         if self.transform:
+#             image = self.transform(image)
+#         return image, label
+
+def get_stanford(args, preprocess_fns, split):
+    assert split in ["train", "test"]
+    preprocess_train, preprocess_val = preprocess_fns
+
+    dataset = datasets.StanfordCars(root=args.stanford, transform=preprocess_val, download=False, split=split)
+    # if split == "train":
+    #     train_files = [os.path.join(args.stanford, f) for f in os.listdir(args.stanford) if f.startswith('train')]
+    #     dataset = MultiParquetDataset(train_files, transform=preprocess_val)
+    # else:
+    #     test_files = [os.path.join(args.stanford, f) for f in os.listdir(args.stanford) if f.startswith('test')]
+    #     dataset = MultiParquetDataset(test_files, transform=preprocess_val)
+    
+    sampler = None
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        num_workers=args.workers,
+        sampler=sampler,
+    )
+
+    return DataInfo(dataloader=dataloader, sampler=sampler)
+
+
+def get_cifar(args, preprocess_fns, split, version):
+    assert split in ["train", "test"]
+    is_train = split == "train"
+    preprocess_train, preprocess_val = preprocess_fns
+
+    if version == '10':
+        dataset = datasets.CIFAR10(root=args.cifar10, transform=preprocess_val, download=True, train=is_train)
+    elif version == '100':
+        dataset = datasets.CIFAR100(root=args.cifar100, transform=preprocess_val, download=True, train=is_train)
+
+    sampler = None
 
     dataloader = torch.utils.data.DataLoader(
         dataset,
@@ -541,7 +656,65 @@ def get_dataset_fn(data_path, dataset_type):
                 f"Tried to figure out dataset type, but failed for extension {ext}.")
     else:
         raise ValueError(f"Unsupported dataset type: {dataset_type}")
-    
+
+
+class PromptTokenizeCaption:
+    def __init__(self, tokenizer):
+        self.tokenizer = tokenizer
+    def __call__(self, texts):
+        texts = [f"a photo of {text}" for text in texts]
+        return self.tokenizer(texts[:5])
+
+
+def get_mscoco(args, preprocess_fn, tokenizer):
+
+     dataset = datasets.CocoCaptions(
+             root=args.ms_coco,
+             annFile=args.ms_coco_annot,
+             transform=preprocess_fn,
+             target_transform=PromptTokenizeCaption(tokenizer)
+             )
+
+     return dataset
+
+
+class Flickr(datasets.VisionDataset):
+    def __init__(self, root, annFile, transform, target_transform):
+        self.transform = transform
+        self.target_transform = target_transform
+
+        with open(annFile) as f:
+            data = json.load(f)
+
+        self.data = data
+        self.root = root
+
+    def __getitem__(self, index: int):
+        image_name = self.data[index]['image']
+        image_path = os.path.join(self.root, image_name)
+        image = Image.open(image_path)
+        image = self.transform(image)
+
+        captions = self.data[index]['caption']
+        captions = self.target_transform(captions)
+
+        return image, captions
+
+    def __len__(self):
+        return len(self.data)
+
+
+def get_flickr(args, preprocess_fn, tokenizer):
+
+     dataset = Flickr(
+             root=args.flickr,
+             annFile=args.flickr_annot,
+             transform=preprocess_fn,
+             target_transform=PromptTokenizeCaption(tokenizer)
+             )
+
+     return dataset
+
 
 def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
     preprocess_train, preprocess_val = preprocess_fns
@@ -557,8 +730,47 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
 
     if args.imagenet_val is not None:
         data["imagenet-val"] = get_imagenet(args, preprocess_fns, "val")
+        data["imagenet-train"] = get_imagenet(args, preprocess_fns, "train")
+    
+    if args.cifar10 is not None:
+        data["cifar10"] = get_cifar(args, preprocess_fns, "test", version='10')
+        data["cifar10-train"] = get_cifar(args, preprocess_fns, "train", version='10')
+
+    if args.cifar100 is not None:
+        data["cifar100"] = get_cifar(args, preprocess_fns, "test", version='100')
+        data["cifar100-train"] = get_cifar(args, preprocess_fns, "train", version='100')
 
     if args.imagenet_v2 is not None:
         data["imagenet-v2"] = get_imagenet(args, preprocess_fns, "v2")
+    
+    if args.imagenet_sketch is not None:
+        data["imagenet-sketch"] = get_imagenet(args, preprocess_fns, "sketch")
+    
+    if args.imagenet_a is not None:
+        data["imagenet-a"] = get_imagenet(args, preprocess_fns, "a")
+    
+    if args.imagenet_o is not None:
+        data["imagenet-o"] = get_imagenet(args, preprocess_fns, "o")
+
+    if args.imagenet_r is not None:
+        data["imagenet-r"] = get_imagenet(args, preprocess_fns, "r")
+
+    if args.flowers_102 is not None:
+        data["flowers-102"] = get_flowers(args, preprocess_fns, "test")
+        data["flowers-102-train"] = get_flowers(args, preprocess_fns, "train")
+    
+    if args.food_101 is not None:
+        data["food-101"] = get_food(args, preprocess_fns, "test")
+        data["food-101-train"] = get_food(args, preprocess_fns, "train")
+
+    if args.stanford is not None:
+        data["stanford"] = get_stanford(args, preprocess_fns, "test")
+        data["stanford-train"] = get_stanford(args, preprocess_fns, "train")
+
+    if args.ms_coco is not None:
+        data["ms-coco"] = get_mscoco(args, preprocess_val, tokenizer)
+    
+    if args.flickr is not None:
+        data["flickr"] = get_flickr(args, preprocess_val, tokenizer)
 
     return data

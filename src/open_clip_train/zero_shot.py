@@ -4,7 +4,9 @@ import torch
 from tqdm import tqdm
 
 from open_clip import get_input_dtype, get_tokenizer, build_zero_shot_classifier, \
-    IMAGENET_CLASSNAMES, OPENAI_IMAGENET_TEMPLATES
+        IMAGENET_CLASSNAMES, OPENAI_IMAGENET_TEMPLATES, IMAGENET_A_CLASSNAMES, IMAGENET_R_CLASSNAMES, CIFAR10_CLASSNAMES, CIFAR100_CLASSNAMES, \
+        FLOWERS_CLASSNAMES, STANFORD_CLASSNAMES, IMAGENET_O_CLASSNAMES, FOOD_CLASSNAMES,\
+        OPENAI_IMAGENET_TEMPLATES, IDENTITY_TEMPLATE
 from open_clip_train.precision import get_autocast
 
 
@@ -43,8 +45,8 @@ def run(model, classifier, dataloader, args):
 
 
 def zero_shot_eval(model, data, epoch, args, tokenizer=None):
-    if 'imagenet-val' not in data and 'imagenet-v2' not in data:
-        return {}
+    # if 'imagenet-val' not in data and 'imagenet-v2' not in data:
+    #     return {}
     if args.zeroshot_frequency == 0:
         return {}
     if (epoch % args.zeroshot_frequency) != 0 and epoch != args.epochs:
@@ -52,18 +54,39 @@ def zero_shot_eval(model, data, epoch, args, tokenizer=None):
     if args.distributed and not args.horovod:
         model = model.module
 
-    logging.info('Starting zero-shot imagenet.')
-    if tokenizer is None:
-        tokenizer = get_tokenizer(args.model)
+    logging.info('Starting zero-shot classification.')
+    # if tokenizer is None:
+    #     tokenizer = get_tokenizer(args.model)
 
     logging.info('Building zero-shot classifier')
     device = torch.device(args.device)
     autocast = get_autocast(args.precision, device_type=device.type)
     with autocast():
+        tokenizer = get_tokenizer(args.model)
+        if 'cifar10' in data:
+            classes = CIFAR10_CLASSNAMES
+        elif 'cifar100' in data:
+            classes = CIFAR100_CLASSNAMES
+        elif 'imagenet-a' in data:
+            classes = IMAGENET_A_CLASSNAMES
+        elif 'imagenet-o' in data:
+            classes = IMAGENET_O_CLASSNAMES
+        elif 'imagenet-r' in data:
+            classes = IMAGENET_R_CLASSNAMES
+        elif 'imagenet-val' in data or 'imagenet-v2' in data or 'imagenet-sketch' in data:
+            classes = IMAGENET_CLASSNAMES
+        elif 'flowers-102' in data:
+            classes = FLOWERS_CLASSNAMES
+        elif 'food-101' in data:
+            classes = FOOD_CLASSNAMES
+        elif 'stanford' in data:
+            classes = STANFORD_CLASSNAMES
+        else:
+            raise ValueError('Unsupported dataset!')
         classifier = build_zero_shot_classifier(
             model,
             tokenizer=tokenizer,
-            classnames=IMAGENET_CLASSNAMES,
+            classnames=classes,
             templates=OPENAI_IMAGENET_TEMPLATES,
             num_classes_per_batch=10,
             device=device,
@@ -80,7 +103,49 @@ def zero_shot_eval(model, data, epoch, args, tokenizer=None):
         top1, top5 = run(model, classifier, data['imagenet-v2'].dataloader, args)
         results['imagenetv2-zeroshot-val-top1'] = top1
         results['imagenetv2-zeroshot-val-top5'] = top5
+    if 'imagenet-sketch' in data:
+        top1, top5 = run(model, classifier, data['imagenet-sketch'].dataloader, args)
+        results['imagenet-sketch-zeroshot-val-top1'] = top1
+        results['imagenet-sketch-zeroshot-val-top5'] = top5
+    if 'imagenet-a' in data:
+        top1, top5 = run(model, classifier, data['imagenet-a'].dataloader, args)
+        results['imagenet-a-zeroshot-val-top1'] = top1
+        results['imagenet-a-zeroshot-val-top5'] = top5
+    if 'imagenet-o' in data:
+        top1, top5 = run(model, classifier, data['imagenet-o'].dataloader, args)
+        results['imagenet-o-zeroshot-val-top1'] = top1
+        results['imagenet-o-zeroshot-val-top5'] = top5
+    if 'imagenet-c' in data:
+        top1, top5 = run(model, classifier, data['imagenet-c'].dataloader, args)
+        results['imagenet-c-zeroshot-val-top1'] = top1
+        results['imagenet-c-zeroshot-val-top5'] = top5
+    if 'imagenet-r' in data:
+        top1, top5 = run(model, classifier, data['imagenet-r'].dataloader, args)
+        results['imagenet-r-zeroshot-val-top1'] = top1
+        results['imagenet-r-zeroshot-val-top5'] = top5
+    if 'cifar10' in data:
+        top1, top5 = run(model, classifier, data['cifar10'].dataloader, args)
+        results['cifar10-zeroshot-val-top1'] = top1
+        results['cifar10-zeroshot-val-top5'] = top5
+    if 'cifar100' in data:
+        top1, top5 = run(model, classifier, data['cifar100'].dataloader, args)
+        results['cifar100-zeroshot-val-top1'] = top1
+        results['cifar100-zeroshot-val-top5'] = top5
+    if 'flowers-102' in data:
+        top1, top5 = run(model, classifier, data['flowers-102'].dataloader, args)
+        results['flowers102-zeroshot-val-top1'] = top1
+        results['flowers102-zeroshot-val-top5'] = top5
+    if 'food-101' in data:
+        top1, top5 = run(model, classifier, data['food-101'].dataloader, args)
+        results['food101-zeroshot-val-top1'] = top1
+        results['food101-zeroshot-val-top5'] = top5
+    if 'stanford' in data:
+        top1, top5 = run(model, classifier, data['stanford'].dataloader, args)
+        results['stanford-zeroshot-val-top1'] = top1
+        results['stanford-zeroshot-val-top5'] = top5
 
-    logging.info('Finished zero-shot imagenet.')
+
+    logging.info('Finished zero-shot.')
+    logging.info(f'The results are: {results}.')
 
     return results

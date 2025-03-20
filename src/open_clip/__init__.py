@@ -15,4 +15,4 @@ from .push_to_hf_hub import push_pretrained_to_hf_hub, push_to_hf_hub
 from .tokenizer import SimpleTokenizer, tokenize, decode
 from .transform import image_transform, AugmentationCfg
 from .zero_shot_classifier import build_zero_shot_classifier, build_zero_shot_classifier_legacy
-from .zero_shot_metadata import OPENAI_IMAGENET_TEMPLATES, SIMPLE_IMAGENET_TEMPLATES, IMAGENET_CLASSNAMES
+from .zero_shot_metadata import IDENTITY_TEMPLATE, OPENAI_IMAGENET_TEMPLATES, SIMPLE_IMAGENET_TEMPLATES, IMAGENET_CLASSNAMES, IMAGENET_A_CLASSNAMES, IMAGENET_R_CLASSNAMES, CIFAR10_CLASSNAMES, CIFAR100_CLASSNAMES, FLOWERS_CLASSNAMES, STANFORD_CLASSNAMES, IMAGENET_O_CLASSNAMES, FOOD_CLASSNAMES

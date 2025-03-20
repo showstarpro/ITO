@@ -1,76 +1,88 @@
-import logging
-import webdataset as wds
-from webdataset.tariterators import base_plus_ext, url_opener, tar_file_expander, valid_sample
+# import os
+# import pandas as pd
+# from torch.utils.data import Dataset, DataLoader
+# from torchvision import transforms
+# from PIL import Image
+# import io
 
-_SAMPLE_SHUFFLE_SIZE = 5000
-_SAMPLE_SHUFFLE_INITIAL = 1000
+# # 自定义 Dataset 类
+# class MultiParquetDataset(Dataset):
+#     def __init__(self, parquet_files, transform=None):
+#         self.parquet_files = parquet_files
+#         self.transform = transform
+#         self.data = pd.concat([pd.read_parquet(f) for f in parquet_files], ignore_index=True)
 
-def log_and_continue(exn):
-    """Call in an exception handler to ignore any exception, issue a warning, and continue."""
-    logging.warning(f'Handling webdataset error ({repr(exn)}). Ignoring.')
-    return True
+#     def __len__(self):
+#         return len(self.data)
 
-def tarfile_to_samples_nothrow(src, handler=log_and_continue):
-    # NOTE this is a re-impl of the webdataset impl with group_by_keys that doesn't throw
-    streams = url_opener(src, handler=handler)
-    files = tar_file_expander(streams, handler=handler)
-    samples = group_by_keys_nothrow(files, handler=handler)
-    return samples
+#     def __getitem__(self, idx):
+#         image_bytes = self.data.iloc[0]['image']['bytes']
+#         label = self.data.iloc[idx]['label']
+#         image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+#         if self.transform:
+#             image = self.transform(image)
+#         return image, label
 
-def group_by_keys_nothrow(data, keys=base_plus_ext, lcase=True, suffixes=None, handler=None):
-    """Return function over iterator that groups key, value pairs into samples.
+from scipy.io import loadmat
+path = '/lpai/open_clip-main/src/classes/cars_annos.mat'
+annotations = loadmat(path)
+class_name = tuple([annotations['class_names'][0][i][0] for i in range(196)])
+print(class_name[1])
+print(annotations['class_names'][0][1][0])
+print(annotations['annotations'][0][1][5])
 
-    :param keys: function that splits the key into key and extension (base_plus_ext)
-    :param lcase: convert suffixes to lower case (Default value = True)
-    """
-    error = 0
-    current_sample = None
-    for filesample in data:
-        assert isinstance(filesample, dict)
-        if not filesample:
-            error += 1
-            print("filesample is none!!!")
-            yield error
-        fname, value = filesample["fname"], filesample["data"]
-        prefix, suffix = keys(fname)
-        if prefix is None:
-            continue
-        if lcase:
-            suffix = suffix.lower()
-        # FIXME webdataset version throws if suffix in current_sample, but we have a potential for
-        #  this happening in the current LAION400m dataset if a tar ends with same prefix as the next
-        #  begins, rare, but can happen since prefix aren't unique across tar files in that dataset
-        if current_sample is None or prefix != current_sample["__key__"] or suffix in current_sample:
-            if valid_sample(current_sample):
-                yield current_sample
-            current_sample = dict(__key__=prefix, __url__=filesample["__url__"])
-        if suffixes is None or suffix in suffixes:
-            current_sample[suffix] = value
-    if valid_sample(current_sample):
-        yield current_sample
+# import os
+# from torch.utils.data import Dataset, DataLoader
+# from torchvision import transforms
+# from PIL import Image
 
-input_shards = '/lpai/dataset/cc12m/0-1-0/cc12m-wds/cc12m-train-{0000..2175}.tar'
-shard_list = wds.SimpleShardList(input_shards)
-dataset = wds.DataPipeline(shard_list)
-# for shard in dataset:
-#     print(shard)
-    
-streams = url_opener(dataset, handler=log_and_continue)
-files = tar_file_expander(streams, handler=log_and_continue)
-for filesample in files:
-    print(filesample.keys())
-    # if not filesample:
-    #     print("filesample is none!!!")
-    #     break
-# samples = group_by_keys_nothrow(files, handler=log_and_continue)
+# # 自定义 Dataset 类
+# class CustomImageDataset(Dataset):
+#     def __init__(self, data_dir, transform=None):
+#         self.data_dir = data_dir
+#         self.transform = transform
+#         self.classes = sorted(os.listdir(data_dir))
+#         self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
+#         self.image_paths = []
+#         self.labels = []
+#         for cls_name in self.classes:
+#             cls_dir = os.path.join(data_dir, cls_name)
+#             for img_name in os.listdir(cls_dir):
+#                 self.image_paths.append(os.path.join(cls_dir, img_name))
+#                 self.labels.append(self.class_to_idx[cls_name])
 
-# samples = tarfile_to_samples_nothrow(dataset)
+#     def __len__(self):
+#         return len(self.image_paths)
 
-# dataloader = wds.WebLoader(
-#     dataset,
-#     batch_size=None,
-#     shuffle=False,
-#     num_workers=1,  # 单进程模式，方便查看输出
-#     persistent_workers=False,
-# )
-    
+#     def __getitem__(self, idx):
+#         image_path = self.image_paths[idx]
+#         image = Image.open(image_path).convert('RGB')
+#         if self.transform:
+#             image = self.transform(image)
+#         label = self.labels[idx]
+#         return image, label
+
+# # 定义预处理
+# preprocess = transforms.Compose([
+#     transforms.Resize((224, 224)),
+#     transforms.ToTensor(),
+#     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+# ])
+
+# # 加载数据集
+# train_dataset = CustomImageDataset(data_dir='/lpai/volumes/so-volume-bd-ga/lhp/datasets/stanford_car/train', transform=preprocess)
+# test_dataset = CustomImageDataset(data_dir='/lpai/volumes/so-volume-bd-ga/lhp/datasets/stanford_car/test', transform=preprocess)
+
+
+# # 创建 DataLoader
+# train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
+# test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4)
+
+# # 测试 DataLoader
+# for images, labels in train_loader:
+#     print(f"Train batch - Images shape: {images.shape}, Labels: {labels}")
+#     break
+
+# for images, labels in test_loader:
+#     print(f"Test batch - Images shape: {images.shape}, Labels: {labels}")
+#     break
