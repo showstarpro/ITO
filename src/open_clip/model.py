@@ -19,9 +19,10 @@ from .hf_model import HFTextEncoder
 from .modified_resnet import ModifiedResNet
 from .timm_model import TimmModel
 from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionTransformer, TextTransformer,\
-    text_global_pool
+    text_global_pool, Transformer
 from .utils import to_2tuple
 
+from .pos_embed import get_2d_sincos_pos_embed
 
 from transformers import CLIPConfig, CLIPModel
 
@@ -286,6 +287,31 @@ class CLIP(nn.Module):
         else:
             self.logit_bias = None
 
+        #### ------------------------- ####
+        ### add new sentence features
+        # fixed sin-cos embedding
+        assert self.visual.grid_size[0] == self.visual.grid_size[1],\
+            'currently sin cos 2d pos embedding only supports square input'
+        self.vision_pos = nn.Parameter(
+            torch.zeros(self.visual.grid_size[0] * self.visual.grid_size[1] + 1, text.output_dim), requires_grad=False)
+        pos_embed_type = get_2d_sincos_pos_embed(text.output_dim, self.visual.grid_size[0], cls_token=True)
+        self.vision_pos.data.copy_(torch.from_numpy(pos_embed_type).float())
+
+        layers = 2
+        self.sentence_transformer_heads = text.heads
+        self.sentence_transformer = Transformer(
+            width=text.output_dim,
+            layers=layers,
+            heads=text.heads,
+            mlp_ratio=text.mlp_ratio,
+            ls_init_value=text.ls_init_value,
+            act_layer=text.act_layer,
+            norm_layer=text.norm_layer,
+        )
+        self.nrom = text.norm_layer(text.output_dim)
+        #### ------------------------- ####
+
+
     def lock_image_tower(self, unlocked_groups=0, freeze_bn_stats=False):
         # lock image tower as per LiT - https://arxiv.org/abs/2111.07991
         self.visual.lock(unlocked_groups=unlocked_groups, freeze_bn_stats=freeze_bn_stats)
@@ -305,8 +331,16 @@ class CLIP(nn.Module):
         return no_wd
 
     def encode_image(self, image, normalize: bool = False):
-        features = self.visual(image)
-        return F.normalize(features, dim=-1) if normalize else features
+        #### ------------------------- ####
+        self.visual.output_tokens = True
+        features, tokens = self.visual(image) 
+        #### ------------------------- ####
+        if normalize:
+            features = F.normalize(features, dim=-1)
+        else:
+            features = features
+
+        return features, tokens
 
     def encode_text(self, text, normalize: bool = False):
         cast_dtype = self.transformer.get_cast_dtype()
@@ -316,36 +350,76 @@ class CLIP(nn.Module):
         x = x + self.positional_embedding.to(cast_dtype)
         x = self.transformer(x, attn_mask=self.attn_mask)
         x = self.ln_final(x)  # [batch_size, n_ctx, transformer.width]
-        x, _ = text_global_pool(x, text, self.text_pool_type)
+        x, text_tokens = text_global_pool(x, text, self.text_pool_type)
         if self.text_projection is not None:
             if isinstance(self.text_projection, nn.Linear):
                 x = self.text_projection(x)
+                text_tokens = self.text_projection(text_tokens)
             else:
                 x = x @ self.text_projection
+                text_tokens = text_tokens @ self.text_projection
+        
+        #### ------------------------- ####
+        index_visible = text.argmax(dim=-1)
+        #### ------------------------- ####
 
-        return F.normalize(x, dim=-1) if normalize else x
+        if normalize:
+            text_features = F.normalize(x, dim=-1)
+        else:
+            text_features = x
+
+        return text_features, text_tokens, index_visible
 
     def get_logits(self, image, text):
-        image_features = self.encode_image(image, normalize=True)
+        image_features, image_tokens = self.encode_image(image, normalize=True)
         text_features = self.encode_text(text, normalize=True)
         image_logits = self.logit_scale.exp() * image_features @ text_features.T
         if self.logit_bias is not None:
             image_logits += self.logit_bias
         text_logits = image_logits.T
         return image_logits, text_logits
+    
+    def forward_sentence(self, image_tokens, text_tokens, index_visible):
+        image_tokens = image_tokens + self.vision_pos.to(image_tokens.device)
+        cast_dtype = self.transformer.get_cast_dtype()
+        text_tokens = text_tokens + self.positional_embedding.to(cast_dtype)
+        
+        x = torch.cat([image_tokens, text_tokens], dim=1)
+        
+        index_visible = image_tokens.shape[1] + index_visible
+        index_visible = index_visible.to(x.device)
+
+        # 生成通用掩码模板 [seq_len, seq_len]
+        seq_len = image_tokens.shape[1] + self.context_length
+        col_indices = torch.arange(seq_len).to(x.device)
+        row_template = col_indices.unsqueeze(0) <= index_visible.unsqueeze(-1)  # [batch_size, seq_len]
+        sentence_attn_mask = (row_template.unsqueeze(-1) & row_template.unsqueeze(-2))
+        sentence_attn_mask = ~sentence_attn_mask  # 反转逻辑：True 表示需要屏蔽
+        sentence_attn_mask = sentence_attn_mask.repeat_interleave(self.sentence_transformer_heads, dim=0)  # [batch_size * num_heads, seq_len, seq_len]
+        
+        x = self.sentence_transformer(x, attn_mask=sentence_attn_mask)
+        x = self.nrom(x)
+        x = x[:, 0]
+        x = F.normalize(x, dim=-1)
+
+        return x
 
     def forward(
             self,
             image: Optional[torch.Tensor] = None,
             text: Optional[torch.Tensor] = None,
     ):
-        image_features = self.encode_image(image, normalize=True) if image is not None else None
-        text_features = self.encode_text(text, normalize=True) if text is not None else None
+        image_features, image_tokens = self.encode_image(image, normalize=True) if image is not None else None
+        text_features, text_tokens, index_visible = self.encode_text(text, normalize=True) if text is not None else None
+
+        sentence_features = self.forward_sentence(image_tokens=image_tokens, text_tokens=text_tokens, index_visible=index_visible)
+
 
         if self.output_dict:
             out_dict = {
                 "image_features": image_features,
                 "text_features": text_features,
+                "sentence_features": sentence_features,
                 "logit_scale": self.logit_scale.exp()
             }
             if self.logit_bias is not None:

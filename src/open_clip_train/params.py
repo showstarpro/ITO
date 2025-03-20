@@ -470,6 +470,8 @@ def parse_args(args):
         help='Use SigLip (sigmoid) loss.'
     )
 
+    parser.add_argument("--alpha", type=float, default=2, help="alpha.")
+
     args = parser.parse_args(args)
 
     if 'timm' not in args.opt:

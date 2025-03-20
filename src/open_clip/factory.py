@@ -451,6 +451,7 @@ def create_loss(args):
             world_size=args.world_size,
         )
     return ClipLoss(
+        alpha=args.alpha,
         local_loss=args.local_loss,
         gather_with_grad=args.gather_with_grad,
         cache_labels=True,

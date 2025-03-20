@@ -465,6 +465,15 @@ class VisionTransformer(nn.Module):
         self.final_ln_after_pool = final_ln_after_pool  # currently ignored w/ attn pool enabled
         self.output_dim = output_dim
 
+        #### ------------------------- ####
+        ### add new sentence features
+        self.heads = heads
+        self.mlp_ratio = mlp_ratio
+        self.ls_init_value = ls_init_value
+        self.act_layer = act_layer
+        self.norm_layer = norm_layer
+        #### ------------------------- ####
+
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=width, kernel_size=patch_size, stride=patch_size, bias=False)
 
         # class embeddings and positional embeddings
@@ -603,9 +612,9 @@ class VisionTransformer(nn.Module):
 
     def _global_pool(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.pool_type == 'avg':
-            pooled, tokens = x[:, 1:].mean(dim=1), x[:, 1:]
+            pooled, tokens = x[:, 1:].mean(dim=1), x # x[:, 1:]
         elif self.pool_type == 'tok':
-            pooled, tokens = x[:, 0], x[:, 1:]
+            pooled, tokens = x[:, 0], x # x[:, 1:]
         else:
             pooled = tokens = x
 
@@ -649,6 +658,8 @@ class VisionTransformer(nn.Module):
 
         if self.proj is not None:
             pooled = pooled @ self.proj
+
+            tokens = tokens @ self.proj ### save for sentence features
 
         if self.output_tokens:
             return pooled, tokens
@@ -704,6 +715,14 @@ class TextTransformer(nn.Module):
         self.heads = heads
         self.pad_id = pad_id
         self.pool_type = pool_type
+
+        #### ------------------------- ####
+        ### add new sentence features
+        self.mlp_ratio = mlp_ratio
+        self.ls_init_value = ls_init_value
+        self.act_layer = act_layer
+        self.norm_layer = norm_layer
+        #### ------------------------- ####
 
         self.token_embedding = nn.Embedding(vocab_size, width)
         if embed_cls:
