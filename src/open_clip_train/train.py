@@ -61,7 +61,7 @@ def backward(total_loss, scaler):
         total_loss.backward()
 
 
-def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=None):
+def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model=None, args=None, tb_writer=None, sbert=None):
     device = torch.device(args.device)
     autocast = get_autocast(args.precision, device_type=device.type)
     input_dtype = get_input_dtype(args.precision)
@@ -89,7 +89,13 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         if not args.skip_scheduler:
             scheduler(step)
 
-        images, texts = batch
+        if args.nl_semantic_supervision:
+            images, texts, captions = batch
+            semantic_features = sbert.encode(sentences=captions, show_progress_bar=False)
+            semantic_features = torch.from_numpy(semantic_features)
+            semantic_features = semantic_features.to(device=device, non_blocking=True)
+        else:
+            images, texts = batch
         images = images.to(device=device, dtype=input_dtype, non_blocking=True)
         texts = texts.to(device=device, non_blocking=True)
 
@@ -104,13 +110,19 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                     with torch.no_grad():
                         dist_model_out = dist_model(images, texts)
                     model_out.update({f'dist_{k}': v for k, v in dist_model_out.items()})
-                losses = loss(**model_out, output_dict=True)
+                if args.nl_semantic_supervision:
+                    losses = loss(**model_out, output_dict=True, semantic_features=semantic_features)
+                else:
+                    losses = loss(**model_out, output_dict=True)
 
                 total_loss = sum(losses.values())
                 losses["loss"] = total_loss
 
             backward(total_loss, scaler)
         else:
+            # TODO: Fix for larger accum_freqs
+            if args.nl_semantic_supervision:
+                raise ValueError(f'NL semantic supervision is not supported with accum_freq={args.accum_freq}. Use 1.')
             # First, cache the features without any gradient tracking.
             with torch.no_grad():
                 with autocast():
@@ -153,7 +165,10 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                         accumulated = accum_features[key]
                         inputs[key] = torch.cat(accumulated[:j] + [model_out[key]] + accumulated[j + 1:])
 
-                    losses = loss(**inputs, **inputs_no_accum, output_dict=True)
+                    if args.nl_semantic_supervision:
+                        losses = loss(**inputs, logit_scale=logit_scale, output_dict=True, semantic_features=semantic_features)
+                    else:
+                        losses = loss(**inputs, logit_scale=logit_scale, output_dict=True)
                     del inputs
                     del inputs_no_accum
                     total_loss = sum(losses.values())

@@ -13,6 +13,9 @@ import numpy as np
 import torch
 from torch import optim
 
+from sentence_transformers import SentenceTransformer as SBERT
+
+
 try:
     import wandb
 except ImportError:
@@ -401,6 +404,7 @@ def main(args):
         (preprocess_train, preprocess_val),
         epoch=start_epoch,
         tokenizer=tokenizer,
+        with_nl_semantic_supervision=args.nl_semantic_supervision,
     )
     assert len(data), 'At least one train or eval dataset must be specified.'
 
@@ -465,6 +469,9 @@ def main(args):
             torch._dynamo.config.optimize_ddp = False
 
         model = torch.compile(original_model)
+    
+    if args.nl_semantic_supervision:
+        sbert = SBERT('all-mpnet-base-v2')
 
     if 'train' not in data:
         # If using int8, convert to inference mode.
@@ -481,7 +488,10 @@ def main(args):
         if is_master(args):
             logging.info(f'Start epoch {epoch}')
 
-        train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=writer)
+        if args.nl_semantic_supervision:
+            train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, args=args, tb_writer=writer, sbert=sbert)
+        else:
+            train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, args=args, tb_writer=writer) 
         completed_epoch = epoch + 1
 
         if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):

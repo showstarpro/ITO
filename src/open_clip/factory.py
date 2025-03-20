@@ -14,7 +14,7 @@ from .convert import convert_state_dict
 from .model import CLIP, CustomTextCLIP, convert_weights_to_lp, convert_to_custom_text_state_dict,\
     resize_pos_embed, get_cast_dtype, resize_text_pos_embed, set_model_preprocess_cfg
 from .coca_model import CoCa
-from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SigLipLoss
+from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SigLipLoss, ClipInModalityLoss
 from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrained,\
     list_pretrained_tags_by_model, download_pretrained_from_hf
 from .transform import image_transform_v2, AugmentationCfg, PreprocessCfg, merge_preprocess_dict, merge_preprocess_kwargs
@@ -425,6 +425,21 @@ def create_model(
 
 
 def create_loss(args):
+    if args.align:
+        return ClipInModalityLoss(
+                local_loss=args.local_loss,
+                gather_with_grad=args.gather_with_grad,
+                cache_labels=True,
+                rank=args.rank,
+                world_size=args.world_size,
+                use_horovod=args.horovod,
+                alpha=args.alpha,
+                beta=args.beta,
+                n_epoch=args.epochs,
+                nl_semantic_supervision=args.nl_semantic_supervision,
+                separate_text=args.separate_text,
+                separate_image=args.separate_image
+                )
     if args.distill:
         return DistillClipLoss(
             local_loss=args.local_loss,

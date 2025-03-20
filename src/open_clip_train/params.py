@@ -470,6 +470,44 @@ def parse_args(args):
         help='Use SigLip (sigmoid) loss.'
     )
 
+    ### add for align
+    parser.add_argument(
+        "--align",
+        default=True,
+        action="store_true",
+        help='Use SigLip (sigmoid) loss.'
+    )
+    parser.add_argument(
+        "--nl-semantic-supervision",
+        default=True,
+        action="store_true",
+        help='Use SigLip (sigmoid) loss.'
+    )
+    parser.add_argument(
+        "--separate-text",
+        default=True,
+        action="store_true",
+        help='Use SigLip (sigmoid) loss.'
+    )
+    parser.add_argument(
+        "--separate-image",
+        default=True,
+        action="store_true",
+        help='Use SigLip (sigmoid) loss.'
+    )
+    parser.add_argument(
+        "--alpha",
+        type=float,
+        default=1.0,
+        help='Use SigLip (sigmoid) loss.'
+    )
+    parser.add_argument(
+        "--beta",
+        type=float,
+        default=0.5,
+        help='Use SigLip (sigmoid) loss.'
+    )
+
     args = parser.parse_args(args)
 
     if 'timm' not in args.opt:
