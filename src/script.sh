@@ -1,3 +1,7 @@
+source /root/anaconda3/etc/profile.d/conda.sh 
+
+conda activate superclass
+
 export WANDB_API_KEY=7352f9a349b74e01062672d0bc0bd3a8094677e2
 
 # python --nproc_per_node 8 -m open_clip_train.main \
@@ -32,9 +36,7 @@ export WANDB_API_KEY=7352f9a349b74e01062672d0bc0bd3a8094677e2
 
 # export CUDA_VISIBLE_DEVICES=6,7
 
-source /root/anaconda3/etc/profile.d/conda.sh 
 
-conda activate superclass
 
 torchrun --nproc_per_node 8 -m open_clip_train.main \
     --train-data "/lpai/dataset/cc12m/0-1-0/cc12m-wds/cc12m-train-{0000..2175}.tar"  \
