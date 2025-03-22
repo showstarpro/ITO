@@ -408,18 +408,27 @@ class CLIP(nn.Module):
             self,
             image: Optional[torch.Tensor] = None,
             text: Optional[torch.Tensor] = None,
-    ):
-        image_features, image_tokens = self.encode_image(image, normalize=True) if image is not None else None
+    ):  
+        image1 = image[0]
+        image2 = image[1]
+        
+        ## aug 
+        image1_features, image1_tokens = self.encode_image(image1, normalize=True) if image1 is not None else None
+        image2_features, image2_tokens = self.encode_image(image2, normalize=True) if image2 is not None else None
+
         text_features, text_tokens, index_visible = self.encode_text(text, normalize=True) if text is not None else None
 
-        sentence_features = self.forward_sentence(image_tokens=image_tokens, text_tokens=text_tokens, index_visible=index_visible)
+        sentence1_features = self.forward_sentence(image_tokens=image1_tokens, text_tokens=text_tokens, index_visible=index_visible)
+        sentence2_features = self.forward_sentence(image_tokens=image2_tokens, text_tokens=text_tokens, index_visible=index_visible)
 
 
         if self.output_dict:
             out_dict = {
-                "image_features": image_features,
+                "image1_features": image1_features,
+                "image2_features": image2_features,
                 "text_features": text_features,
-                "sentence_features": sentence_features,
+                "sentence1_features": sentence1_features,
+                "sentence2_features": sentence2_features,
                 "logit_scale": self.logit_scale.exp()
             }
             if self.logit_bias is not None:
@@ -427,8 +436,8 @@ class CLIP(nn.Module):
             return out_dict
 
         if self.logit_bias is not None:
-            return image_features, text_features, self.logit_scale.exp(), self.logit_bias
-        return image_features, text_features, self.logit_scale.exp()
+            return image1_features,image2_features, text_features, sentence1_features, sentence2_features, self.logit_scale.exp(), self.logit_bias
+        return image1_features,image2_features, text_features,sentence1_features, sentence2_features, self.logit_scale.exp()
 
 
 class CustomTextCLIP(nn.Module):
