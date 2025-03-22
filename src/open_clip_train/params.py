@@ -470,7 +470,15 @@ def parse_args(args):
         help='Use SigLip (sigmoid) loss.'
     )
 
+    ## add new 
     parser.add_argument("--alpha", type=float, default=2, help="alpha.")
+    parser.add_argument(
+        "--aug",
+        default=False,
+        action="store_true",
+        help='Use SigLip (sigmoid) loss.'
+    )
+
 
     args = parser.parse_args(args)
 

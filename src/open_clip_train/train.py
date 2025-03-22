@@ -89,9 +89,16 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         if not args.skip_scheduler:
             scheduler(step)
 
-        images, texts = batch
-        images = images.to(device=device, dtype=input_dtype, non_blocking=True)
-        texts = texts.to(device=device, non_blocking=True)
+        if args.aug:
+            image1, image2, texts = batch
+            image1 = image1.to(device=device, dtype=input_dtype, non_blocking=True)
+            image2 = image2.to(device=device, dtype=input_dtype, non_blocking=True)
+            images = torch.stack((image1, image2), dim=0)
+            texts = texts.to(device=device, non_blocking=True)
+        else:
+            images, texts = batch
+            images = images.to(device=device, dtype=input_dtype, non_blocking=True)
+            texts = texts.to(device=device, non_blocking=True)
 
         data_time_m.update(time.time() - end)
         optimizer.zero_grad()
