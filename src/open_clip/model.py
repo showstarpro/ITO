@@ -436,8 +436,8 @@ class CLIP(nn.Module):
             return out_dict
 
         if self.logit_bias is not None:
-            return image1_features,image2_features, text_features, sentence1_features, sentence2_features, self.logit_scale.exp(), self.logit_bias
-        return image1_features,image2_features, text_features,sentence1_features, sentence2_features, self.logit_scale.exp()
+            return image1_features, image2_features, text_features, sentence1_features, sentence2_features, self.logit_scale.exp(), self.logit_bias
+        return image1_features, image2_features, text_features, sentence1_features, sentence2_features, self.logit_scale.exp()
 
 
 class CustomTextCLIP(nn.Module):

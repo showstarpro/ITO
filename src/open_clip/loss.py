@@ -15,11 +15,12 @@ try:
 except ImportError:
     hvd = None
 
+import torch.nn.functional as F
 
-def gather_features(
-        image_features,
-        text_features,
-        sentence_features,
+def gather_features( 
+        image1_features, image2_features, 
+        text_features, 
+        sentence1_features, sentence2_features,
         local_loss=False,
         gather_with_grad=False,
         rank=0,
@@ -30,48 +31,70 @@ def gather_features(
     if use_horovod:
         assert hvd is not None, 'Please install horovod'
         if gather_with_grad:
-            all_image_features = hvd.allgather(image_features)
+            all_image1_features = hvd.allgather(image1_features)
+            all_image2_features = hvd.allgather(image2_features)
             all_text_features = hvd.allgather(text_features)
-            all_sentence_features = hvd.allgather(sentence_features)
+            all_sentence1_features = hvd.allgather(sentence1_features)
+            all_sentence2_features = hvd.allgather(sentence2_features)
         else:
             with torch.no_grad():
-                all_image_features = hvd.allgather(image_features)
+                all_image1_features = hvd.allgather(image1_features)
+                all_image2_features = hvd.allgather(image2_features)
                 all_text_features = hvd.allgather(text_features)
-                all_sentence_features = hvd.allgather(sentence_features)
+                all_sentence1_features = hvd.allgather(sentence1_features)
+                all_sentence2_features = hvd.allgather(sentence2_features)
             if not local_loss:
                 # ensure grads for local rank when all_* features don't have a gradient
-                gathered_image_features = list(all_image_features.chunk(world_size, dim=0))
+                gathered_image1_features = list(all_image1_features.chunk(world_size, dim=0))
+                gathered_image2_features = list(all_image2_features.chunk(world_size, dim=0))
                 gathered_text_features = list(all_text_features.chunk(world_size, dim=0))
-                gathered_sentence_features = list(all_sentence_features.chunk(world_size, dim=0))
-                gathered_image_features[rank] = image_features
+                gathered_sentence1_features = list(all_sentence1_features.chunk(world_size, dim=0))
+                gathered_sentence2_features = list(all_sentence2_features.chunk(world_size, dim=0))
+
+                gathered_image1_features[rank] = image1_features
+                gathered_image2_features[rank] = image2_features
                 gathered_text_features[rank] = text_features
-                gathered_sentence_features[rank] = sentence_features
-                all_image_features = torch.cat(gathered_image_features, dim=0)
+                gathered_sentence1_features[rank] = sentence1_features
+                gathered_sentence2_features[rank] = sentence2_features
+
+                all_image1_features = torch.cat(gathered_image1_features, dim=0)
+                all_image2_featuress = torch.cat(gathered_image2_features, dim=0)
                 all_text_features = torch.cat(gathered_text_features, dim=0)
-                all_sentence_features = torch.cat(gathered_sentence_features, dim=0)
+                all_sentence1_features = torch.cat(gathered_sentence1_features, dim=0)
+                all_sentence2_features = torch.cat(gathered_sentence2_features, dim=0)
     else:
         # We gather tensors from all gpus
         if gather_with_grad:
-            all_image_features = torch.cat(torch.distributed.nn.all_gather(image_features), dim=0)
+            all_image1_features = torch.cat(torch.distributed.nn.all_gather(image1_features), dim=0)
+            all_image2_featuress = torch.cat(torch.distributed.nn.all_gather(image2_features), dim=0)            
             all_text_features = torch.cat(torch.distributed.nn.all_gather(text_features), dim=0)
-            all_sentence_features = torch.cat(torch.distributed.nn.all_gather(sentence_features), dim=0)
+            all_sentence1_features = torch.cat(torch.distributed.nn.all_gather(sentence1_features), dim=0)
+            all_sentence2_features = torch.cat(torch.distributed.nn.all_gather(sentence2_features), dim=0)
         else:
-            gathered_image_features = [torch.zeros_like(image_features) for _ in range(world_size)]
+            gathered_image1_features = [torch.zeros_like(image1_features) for _ in range(world_size)]
+            gathered_image2_features = [torch.zeros_like(image2_features) for _ in range(world_size)]
             gathered_text_features = [torch.zeros_like(text_features) for _ in range(world_size)]
-            gathered_sentence_features = [torch.zeros_like(sentence_features) for _ in range(world_size)]
-            dist.all_gather(gathered_image_features, image_features)
+            gathered_sentence1_features = [torch.zeros_like(sentence1_features) for _ in range(world_size)]
+            gathered_sentence2_features = [torch.zeros_like(sentence2_features) for _ in range(world_size)]
+            dist.all_gather(gathered_image1_features, image1_features)
+            dist.all_gather(gathered_image2_features, image2_features)
             dist.all_gather(gathered_text_features, text_features)
-            dist.all_gather(gathered_sentence_features, sentence_features)
+            dist.all_gather(gathered_sentence1_features, sentence1_features)
+            dist.all_gather(gathered_sentence2_features, sentence2_features)
             if not local_loss:
                 # ensure grads for local rank when all_* features don't have a gradient
-                gathered_image_features[rank] = image_features
+                gathered_image1_features[rank] = image1_features
+                gathered_image2_features[rank] = image2_features
                 gathered_text_features[rank] = text_features
-                gathered_sentence_features[rank] = sentence_features
-            all_image_features = torch.cat(gathered_image_features, dim=0)
+                gathered_sentence1_features[rank] = sentence1_features
+                gathered_sentence2_features[rank] = sentence2_features
+            all_image1_features = torch.cat(gathered_image1_features, dim=0)
+            all_image2_features = torch.cat(gathered_image2_features, dim=0)
             all_text_features = torch.cat(gathered_text_features, dim=0)
-            all_sentence_features = torch.cat(gathered_sentence_features, dim=0)
+            all_sentence1_features = torch.cat(gathered_sentence1_features, dim=0)
+            all_sentence2_features = torch.cat(gathered_sentence2_features, dim=0)
 
-    return all_image_features, all_text_features, all_sentence_features
+    return all_image1_features, all_image2_features, all_text_features, all_sentence1_features, all_sentence2_features
 
 
 class ClipLoss(nn.Module):
@@ -114,40 +137,57 @@ class ClipLoss(nn.Module):
             labels = self.labels[device]
         return labels
 
-    def get_logits(self, image1_features,image2_features, text_features,sentence1_features, sentence2_features, logit_scale):
+    def get_logits(self, image1_features, image2_features, text_features, sentence1_features, sentence2_features, logit_scale):
         if self.world_size > 1:
-            all_image_features, all_text_features, all_sentence_features = gather_features(
-                image_features, text_features, sentence_features, 
+            all_image1_features, all_image2_features, all_text_features, all_sentence1_features, all_sentence2_features = gather_features(
+                image1_features, image2_features, text_features, sentence1_features, sentence2_features,
                 self.local_loss, self.gather_with_grad, self.rank, self.world_size, self.use_horovod)
 
             if self.local_loss:
-                logits_per_image = logit_scale * image_features @ all_text_features.T
-                logits_per_text = logit_scale * text_features @ all_image_features.T
+                logits_per_image1 = logit_scale * image1_features @ all_text_features.T
+                logits_per_image2 = logit_scale * image2_features @ all_text_features.T
+                logits_per_text1 = logit_scale * text_features @ all_image1_features.T
+                logits_per_text2 = logit_scale * text_features @ all_image2_features.T
             else:
-                logits_per_image = logit_scale * all_image_features @ all_text_features.T
-                logits_per_text = logits_per_image.T
+                logits_per_image1 = logit_scale * all_image1_features @ all_text_features.T
+                logits_per_image2 = logit_scale * all_image2_features @ all_text_features.T
+                logits_per_text1 = logits_per_image1.T
+                logits_per_text2 = logits_per_image2.T
         else:
-            logits_per_image = logit_scale * image_features @ text_features.T
-            logits_per_text = logit_scale * text_features @ image_features.T
+            logits_per_image1 = logit_scale * image1_features @ text_features.T
+            logits_per_image2 = logit_scale * image2_features @ text_features.T
+            logits_per_text1 = logit_scale * text_features @ image1_features.T
+            logits_per_text2 = logit_scale * text_features @ image2_features.T
         
-        return logits_per_image, logits_per_text, all_sentence_features
+        return logits_per_image1, logits_per_image2, logits_per_text1, logits_per_text2, all_sentence1_features, all_sentence2_features
 
-    def forward(self, image1_features,image2_features, text_features,sentence1_features, sentence2_features, logit_scale, output_dict=False):
+    def forward(self, image1_features, image2_features, text_features, sentence1_features, sentence2_features, logit_scale, output_dict=False):
         device = image1_features.device
-        logits_per_image, logits_per_text, all_sentence_features = self.get_logits(image1_features,image2_features, text_features,sentence1_features, sentence2_features, logit_scale)
+        logits_per_image1, logits_per_image2, logits_per_text1, logits_per_text2, all_sentence1_features, all_sentence2_features = self.get_logits(image1_features, image2_features, text_features, sentence1_features, sentence2_features, logit_scale)
 
-        labels = self.get_ground_truth(device, logits_per_image.shape[0])
+        labels = self.get_ground_truth(device, logits_per_image1.shape[0])
 
         clip_loss = (
-            F.cross_entropy(logits_per_image, labels) +
-            F.cross_entropy(logits_per_text, labels)
+            F.cross_entropy(logits_per_image1, labels) +
+            F.cross_entropy(logits_per_text1, labels)
+        ) / 2 + (
+            F.cross_entropy(logits_per_image2, labels) +
+            F.cross_entropy(logits_per_text2, labels)
         ) / 2
 
-        sentence_sim =  torch.matmul(all_sentence_features, all_sentence_features.T)
-        sentence_loss = sentence_sim - torch.eye(sentence_sim.shape[0]).to(sentence_sim.device)
-        sentence_loss = torch.mean(sentence_loss)
 
-        sentence_loss =  self.alpha * sentence_loss
+        logits_per_sentence11 = logit_scale * all_sentence1_features @ all_sentence1_features.T
+        logits_per_sentence11 = logits_per_sentence11 - F.one_hot(labels, logits_per_sentence11.shape[0]) * 1e9
+        logits_per_sentence22 = logit_scale * all_sentence2_features @ all_sentence2_features.T
+        logits_per_sentence22 = logits_per_sentence22 - F.one_hot(labels, logits_per_sentence22.shape[0]) * 1e9
+        
+        logits_per_sentence12 = logit_scale * all_sentence1_features @ all_sentence2_features.T
+        logits_per_sentence21 = logit_scale * all_sentence2_features @ all_sentence1_features.T
+
+        loss_sentence1 = F.cross_entropy(torch.cat([logits_per_sentence12, logits_per_sentence11], dim=1), labels)
+        loss_sentence2 = F.cross_entropy(torch.cat([logits_per_sentence21, logits_per_sentence22], dim=1), labels)
+
+        sentence_loss =  self.alpha * (loss_sentence1 + loss_sentence2) / 2
 
         if output_dict:
             return {"clip_loss": clip_loss, "sentence_loss": sentence_loss} 
