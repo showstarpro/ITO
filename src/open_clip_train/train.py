@@ -256,10 +256,10 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
     device = torch.device(args.device)
     model.eval()
 
-    # zero_shot_metrics = zero_shot_eval(model, data, epoch, args, tokenizer=tokenizer)
-    # metrics.update(zero_shot_metrics)
-    linear_probe_metrics = get_linear_probe_metrics(model, data, args)
-    metrics.update(linear_probe_metrics)
+    zero_shot_metrics = zero_shot_eval(model, data, epoch, args, tokenizer=tokenizer)
+    metrics.update(zero_shot_metrics)
+    # linear_probe_metrics = get_linear_probe_metrics(model, data, args)
+    # metrics.update(linear_probe_metrics)
 
     autocast = get_autocast(args.precision, device_type=device.type)
     input_dtype = get_input_dtype(args.precision)
