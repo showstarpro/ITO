@@ -1,10 +1,11 @@
 from collections import OrderedDict
+from typing import Dict, List, Optional, Union
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from open_clip.utils import freeze_batch_norm_2d
+from .utils import freeze_batch_norm_2d, feature_take_indices
 
 
 class Bottleneck(nn.Module):
@@ -169,6 +170,53 @@ class ModifiedResNet(nn.Module):
         x = self.act3(self.bn3(self.conv3(x)))
         x = self.avgpool(x)
         return x
+
+    def forward_intermediates(
+            self,
+            x: torch.Tensor,
+            indices: Optional[Union[int, List[int]]] = None,
+            stop_early: bool = False,
+            normalize_intermediates: bool = False,
+            intermediates_only: bool = False,
+            output_fmt: str = 'NCHW',
+            output_extra_tokens: bool = False,
+    ) -> Dict[str, Union[torch.Tensor, List[torch.Tensor]]]:
+        """ Forward features that returns intermediates.
+
+        Args:
+            x: Input image tensor
+            indices: Take last n blocks if int, all if None, select matching indices if sequence
+            stop_early: Stop iterating over blocks when last desired intermediate hit
+            normalize_intermediates: Apply final norm layer to all intermediates
+            intermediates_only: Only return intermediate features
+            output_fmt: Shape of intermediate feature outputs
+            output_extra_tokens: Return both extra class, eot tokens
+        Returns:
+
+        """
+        assert output_fmt in ('NCHW',), 'Output format must be == NCHW.'
+        # NOTE normalize_intermediates and return_extra_tokens don't apply
+        take_indices, max_index = feature_take_indices(5, indices)
+
+        output = {}
+        intermediates = []
+        blocks = [self.stem, self.layer1, self.layer2, self.layer3, self.layer4]
+        if torch.jit.is_scripting() or not stop_early:  # can't slice blocks in torchscript
+            blocks = blocks[:max_index + 1]
+        for i, blk in enumerate(blocks):
+            x = blk(x)
+            if i in take_indices:
+                intermediates.append(x)
+
+        output['image_intermediates'] = intermediates
+
+        if intermediates_only:
+            return output
+
+        x = self.attnpool(x)
+        output['image_features'] = x
+
+        return output
 
     def forward(self, x):
         x = self.stem(x)
