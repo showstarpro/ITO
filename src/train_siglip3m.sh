@@ -1,0 +1,21 @@
+source /root/anaconda3/etc/profile.d/conda.sh 
+
+conda activate superclass 
+
+export WANDB_API_KEY=7352f9a349b74e01062672d0bc0bd3a8094677e2 
+
+torchrun --nproc_per_node 8 -m open_clip_train.main \
+    --train-data "/lpai/dataset/cc3m-webdataset/0-1-0/cc3m/cc3m-train-{0000..0575}.tar"  \
+    --train-num-samples 2905954 \
+    --dataset-type webdataset \
+    --imagenet-val "/lpai/dataset/imagenet-1k/0-1-0/ILSVRC2012/val" \
+    --batch-size 256 \
+    --precision amp \
+    --workers 16 \
+    --lr 1e-3 --wd 0.1 --warmup 10000  --beta1 0.9 --beta2 0.98 --eps 1e-06 \
+    --epochs 30 \
+    --model "ViT-B-16-SigLIP" \
+    --siglip \
+    --report-to wandb  --wandb-project-name open_siglip \
+    --coca-caption-loss-weight 0 --coca-contrastive-loss-weight 0 \
+    --name open_siglip3m_1e3
