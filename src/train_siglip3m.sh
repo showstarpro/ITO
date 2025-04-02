@@ -9,7 +9,7 @@ torchrun --nproc_per_node 8 -m open_clip_train.main \
     --train-num-samples 2905954 \
     --dataset-type webdataset \
     --imagenet-val "/lpai/dataset/imagenet-1k/0-1-0/ILSVRC2012/val" \
-    --batch-size 256 \
+    --batch-size 512 \
     --precision amp \
     --workers 16 \
     --lr 1e-3 --wd 0.1 --warmup 10000  --beta1 0.9 --beta2 0.98 --eps 1e-06 \
