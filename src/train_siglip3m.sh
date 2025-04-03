@@ -18,4 +18,4 @@ torchrun --nproc_per_node 8 -m open_clip_train.main \
     --siglip \
     --report-to wandb  --wandb-project-name open_siglip \
     --coca-caption-loss-weight 0 --coca-contrastive-loss-weight 0 \
-    --name open_siglip3m_1e3
+    --name siglip3m_1e3
