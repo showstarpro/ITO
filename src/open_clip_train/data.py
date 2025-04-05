@@ -730,7 +730,7 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
 
     if args.imagenet_val is not None:
         data["imagenet-val"] = get_imagenet(args, preprocess_fns, "val")
-        # data["imagenet-train"] = get_imagenet(args, preprocess_fns, "train")
+        data["imagenet-train"] = get_imagenet(args, preprocess_fns, "train")
     
     if args.cifar10 is not None:
         data["cifar10"] = get_cifar(args, preprocess_fns, "test", version='10')

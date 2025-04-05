@@ -23,14 +23,18 @@
 #             image = self.transform(image)
 #         return image, label
 
-from scipy.io import loadmat
-path = '/lpai/open_clip-main/src/classes/cars_annos.mat'
-annotations = loadmat(path)
-class_name = tuple([annotations['class_names'][0][i][0] for i in range(196)])
-print(class_name[1])
-print(annotations['class_names'][0][1][0])
-print(annotations['annotations'][0][1][5])
-
+# from scipy.io import loadmat
+# path = '/lpai/open_clip-main/src/classes/cars_annos.mat'
+# annotations = loadmat(path)
+# class_name = tuple([annotations['class_names'][0][i][0] for i in range(196)])
+# print(class_name[1])
+# print(annotations['class_names'][0][1][0])
+# print(annotations['annotations'][0][1][5])
+import torch
+x = torch.randn(2, 77)
+dim = x.shape[-1]
+x = x.view(-1, dim)
+print(x.shape)
 # import os
 # from torch.utils.data import Dataset, DataLoader
 # from torchvision import transforms
