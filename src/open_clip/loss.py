@@ -117,16 +117,44 @@ class ClipLoss(nn.Module):
         
         return logits_per_image, logits_per_text
 
-    def forward(self, image_features, text_features, logit_scale, output_dict=False):
+    def get_ground_truth(self, device, dtype, num_logits, negative_only=False) -> torch.Tensor:
+        labels = -torch.ones((num_logits, num_logits), device=device, dtype=dtype)
+        if not negative_only:
+            labels = 2 * torch.eye(num_logits, device=device, dtype=dtype) + labels
+        return labels
+
+    def get_logits_siglip(self, image_features, text_features, logit_scale, logit_bias=None):
+        logits = logit_scale * image_features @ text_features.T
+        if logit_bias is not None:
+            logits += logit_bias
+        return logits
+
+    def _loss(self, image_features, text_features, logit_scale, logit_bias=None, negative_only=False):
+        logits = self.get_logits_siglip(image_features, text_features, logit_scale, logit_bias)
+        labels = self.get_ground_truth(
+            image_features.device,
+            image_features.dtype,
+            image_features.shape[0],
+            negative_only=negative_only,
+        )
+        loss = -F.logsigmoid(labels * logits).sum() / image_features.shape[0]
+        return loss
+
+    def forward(self, image_features, text_features, logit_scale, logit_bias=None, output_dict=False):
         device = image_features.device
-        logits_per_image, logits_per_text = self.get_logits(image_features, text_features, logit_scale)
+        if self.world_size > 1:
+            all_image_features, all_text_features = gather_features(
+                image_features, text_features,
+                self.local_loss, self.gather_with_grad, self.rank, self.world_size, self.use_horovod)
+        else:
+            all_image_features = image_features
+            all_text_features = text_features
 
-        labels = self.get_ground_truth(device, logits_per_image.shape[0])
-
-        total_loss = (
-            F.cross_entropy(logits_per_image, labels) +
-            F.cross_entropy(logits_per_text, labels)
-        ) / 2
+        total_loss = self._loss(
+            all_image_features,
+            all_text_features,
+            logit_scale,
+            logit_bias)
 
         return {"contrastive_loss": total_loss} if output_dict else total_loss
 

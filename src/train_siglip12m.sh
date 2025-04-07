@@ -14,8 +14,7 @@ torchrun --nproc_per_node 8 -m open_clip_train.main \
     --workers 16 \
     --lr 1e-3 --wd 0.1 --warmup 10000  --beta1 0.9 --beta2 0.98 --eps 1e-06 \
     --epochs 30 \
-    --model "ViT-B-16-SigLIP" \
-    --siglip \
+    --model "ViT-B-16" \
     --report-to wandb  --wandb-project-name open_siglip \
     --coca-caption-loss-weight 0 --coca-contrastive-loss-weight 0 \
-    --name siglip12m_1e3
+    --name siglip12m_1e3_vitb16
