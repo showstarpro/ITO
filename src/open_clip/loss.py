@@ -86,18 +86,18 @@ class ClipLoss(nn.Module):
         self.prev_num_logits = 0
         self.labels = {}
 
-    def get_ground_truth(self, device, num_logits) -> torch.Tensor:
-        # calculated ground-truth and cache if enabled
-        if self.prev_num_logits != num_logits or device not in self.labels:
-            labels = torch.arange(num_logits, device=device, dtype=torch.long)
-            if self.world_size > 1 and self.local_loss:
-                labels = labels + num_logits * self.rank
-            if self.cache_labels:
-                self.labels[device] = labels
-                self.prev_num_logits = num_logits
-        else:
-            labels = self.labels[device]
-        return labels
+    # def get_ground_truth(self, device, num_logits) -> torch.Tensor:
+    #     # calculated ground-truth and cache if enabled
+    #     if self.prev_num_logits != num_logits or device not in self.labels:
+    #         labels = torch.arange(num_logits, device=device, dtype=torch.long)
+    #         if self.world_size > 1 and self.local_loss:
+    #             labels = labels + num_logits * self.rank
+    #         if self.cache_labels:
+    #             self.labels[device] = labels
+    #             self.prev_num_logits = num_logits
+    #     else:
+    #         labels = self.labels[device]
+    #     return labels
 
     def get_logits(self, image_features, text_features, logit_scale):
         if self.world_size > 1:
