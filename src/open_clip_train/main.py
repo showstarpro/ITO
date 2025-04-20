@@ -395,6 +395,7 @@ def main(args):
             logging.info(f"=> loaded checkpoint '{args.resume}' (epoch {start_epoch})")
 
     # initialize datasets
+    print(preprocess_train)
     tokenizer = get_tokenizer(args.model, cache_dir=args.cache_dir)
     data = get_data(
         args,

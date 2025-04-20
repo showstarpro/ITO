@@ -7,7 +7,9 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import torch
 import torchvision.transforms.functional as F
 from torchvision.transforms import Normalize, Compose, RandomResizedCrop, InterpolationMode, ToTensor, Resize, \
-    CenterCrop, ColorJitter, Grayscale
+    CenterCrop, ColorJitter, Grayscale, RandomHorizontalFlip
+import torchvision.transforms as transforms
+from PIL import ImageFilter
 
 from .constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
 from .utils import to_2tuple
@@ -270,6 +272,19 @@ class gray_scale(object):
         else:
             return img
 
+class gaussian_blur(object):
+    """Gaussian blur augmentation in SimCLR https://arxiv.org/abs/2002.05709"""
+
+    def __init__(self, sigma=[.1, 2.], p=0.5):
+        assert 0. <= p <= 1.
+        self.p = p
+        self.sigma = sigma
+
+    def __call__(self, x):
+        if random.random() < self.p:
+            sigma = random.uniform(self.sigma[0], self.sigma[1])
+            x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
+        return x
 
 def image_transform(
         image_size: Union[int, Tuple[int, int]],
@@ -349,6 +364,8 @@ def image_transform(
                     gray_scale(aug_cfg.gray_scale_prob)
                 ])
             train_transform.extend([
+                gaussian_blur([.1, 2.], p=0.5),
+                RandomHorizontalFlip(),
                 ToTensor(),
                 normalize,
             ])
