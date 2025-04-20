@@ -412,17 +412,28 @@ class CLIP(nn.Module):
         if image.dim() == 5:
             image1 = image[0]
             image2 = image[1]
+            
+            text1 = text[0]
+            text2 = text[1]
         
             ## aug 
             image1_features, image1_tokens = self.encode_image(image1, normalize=True) if image1 is not None else None
             image2_features, image2_tokens = self.encode_image(image2, normalize=True) if image2 is not None else None
 
-            text_features, text_tokens, index_visible = self.encode_text(text, normalize=True) if text is not None else None
+            text1_features, text1_tokens, index1_visible = self.encode_text(text1, normalize=True) if text1 is not None else None
+            text2_features, text2_tokens, index2_visible = self.encode_text(text2, normalize=True) if text2 is not None else None
 
-            sentence1_features = self.forward_sentence(image_tokens=image1_tokens, text_tokens=text_tokens, index_visible=index_visible)
-            sentence2_features = self.forward_sentence(image_tokens=image2_tokens, text_tokens=text_tokens, index_visible=index_visible)
+            sentence11_features = self.forward_sentence(image_tokens=image1_tokens, text_tokens=text1_tokens, index_visible=index1_visible)
+            sentence12_features = self.forward_sentence(image_tokens=image1_tokens, text_tokens=text2_tokens, index_visible=index2_visible)
+            sentence21_features = self.forward_sentence(image_tokens=image2_tokens, text_tokens=text1_tokens, index_visible=index1_visible)
+            sentence22_features = self.forward_sentence(image_tokens=image2_tokens, text_tokens=text2_tokens, index_visible=index2_visible)
 
-
+            sentence1_features = (sentence11_features + sentence12_features) / 2
+            sentence2_features = (sentence21_features + sentence22_features) / 2
+            sentence1_features = F.normalize(sentence1_features, dim=-1)
+            sentence2_features = F.normalize(sentence2_features, dim=-1)
+            text_features = (text1_features + text2_features) / 2
+            text_features = F.normalize(text_features, dim=-1)
             if self.output_dict:
                 out_dict = {
                     "image1_features": image1_features,

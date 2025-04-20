@@ -387,16 +387,25 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
             wds.tarfile_to_samples(handler=log_and_continue),
         ])
     if args.aug:
+        def process_sample(sample):
+            img = sample["image"]  # Assume the image is under the key "image"
+            image1 = preprocess_img(img)  # Apply first transformation
+            image2 = preprocess_img(img)  # Apply first transformation
+            origin_txt = tokenizer(sample['text']['caption'])[0]
+            # shortLLA_txt = tokenizer(sample['text']['shortLLA_captions'])[0]
+            longLLA_txt = tokenizer(sample['text']['longLLA_captions'])[0]
+            # shortIB_txt = tokenizer(sample['text']['shortIB_captions'])[0]
+            longIB_txt = tokenizer(sample['text']['longIB_captions'])[0]
+            # shortSV_txt = tokenizer(sample['text']['shortSV_captions'])[0]
+            longSV_txt = tokenizer(sample['text']['longSV_captions'])[0]
+            return {"image1": image1, "image2": image2, "text0": origin_txt, "text1": longLLA_txt, "text2": longIB_txt, "text3": longSV_txt}  # Assume "text" is the label key
+        
         pipeline.extend([
             wds.select(filter_no_caption_or_no_image),
             wds.decode("pilrgb", handler=log_and_continue),
-            wds.rename(image1="jpg;png;jpeg;webp", image2="jpg;png;jpeg;webp", text="txt"),
-            wds.map_dict(
-                image1=preprocess_img,  # 处理两次图像
-                image2=preprocess_img,  # 处理两次图像
-                text=lambda text: tokenizer(text)[0]
-            ),
-            wds.to_tuple("image1", "image2", "text"),  # 显式展开 image1, image2
+            wds.rename(image="jpg;png;jpeg;webp", text="json"),
+            wds.map(process_sample),
+            wds.to_tuple("image1", "image2", "text0", "text1", "text2", "text3"),
             wds.batched(args.batch_size, partial=not is_train)
         ])
     else:

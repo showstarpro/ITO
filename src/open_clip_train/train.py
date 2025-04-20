@@ -90,11 +90,18 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             scheduler(step)
 
         if args.aug:
-            image1, image2, texts = batch
+            image1, image2, text0, text1, text2, text3 = batch
             image1 = image1.to(device=device, dtype=input_dtype, non_blocking=True)
             image2 = image2.to(device=device, dtype=input_dtype, non_blocking=True)
             images = torch.stack((image1, image2), dim=0)
-            texts = texts.to(device=device, non_blocking=True)
+            text0 = text0.to(device=device, non_blocking=True)
+            text1 = text1.to(device=device, non_blocking=True)
+            text2 = text2.to(device=device, non_blocking=True)
+            text3 = text3.to(device=device, non_blocking=True)
+            text = torch.stack((text0, text1, text2, text3), dim=0)
+            perm = torch.stack([torch.randperm(text.size(0))[:2] for _ in range(text.size(1))], dim=1) 
+            channel_indices = torch.arange(text.size(1)).repeat(2, 1) 
+            texts = text[perm, channel_indices]
         else:
             images, texts = batch
             images = images.to(device=device, dtype=input_dtype, non_blocking=True)
