@@ -19,7 +19,7 @@ import torch.nn.functional as F
 
 def gather_features( 
         image1_features, image2_features, 
-        text_features, 
+        text1_features, text2_features,
         sentence1_features, sentence2_features,
         local_loss=False,
         gather_with_grad=False,
@@ -33,33 +33,38 @@ def gather_features(
         if gather_with_grad:
             all_image1_features = hvd.allgather(image1_features)
             all_image2_features = hvd.allgather(image2_features)
-            all_text_features = hvd.allgather(text_features)
+            all_text1_features = hvd.allgather(text1_features)
+            all_text2_features = hvd.allgather(text2_features)
             all_sentence1_features = hvd.allgather(sentence1_features)
             all_sentence2_features = hvd.allgather(sentence2_features)
         else:
             with torch.no_grad():
                 all_image1_features = hvd.allgather(image1_features)
                 all_image2_features = hvd.allgather(image2_features)
-                all_text_features = hvd.allgather(text_features)
+                all_text1_features = hvd.allgather(text1_features)
+                all_text2_features = hvd.allgather(text2_features)
                 all_sentence1_features = hvd.allgather(sentence1_features)
                 all_sentence2_features = hvd.allgather(sentence2_features)
             if not local_loss:
                 # ensure grads for local rank when all_* features don't have a gradient
                 gathered_image1_features = list(all_image1_features.chunk(world_size, dim=0))
                 gathered_image2_features = list(all_image2_features.chunk(world_size, dim=0))
-                gathered_text_features = list(all_text_features.chunk(world_size, dim=0))
+                gathered_text1_features = list(all_text1_features.chunk(world_size, dim=0))
+                gathered_text2_features = list(all_text2_features.chunk(world_size, dim=0))
                 gathered_sentence1_features = list(all_sentence1_features.chunk(world_size, dim=0))
                 gathered_sentence2_features = list(all_sentence2_features.chunk(world_size, dim=0))
 
                 gathered_image1_features[rank] = image1_features
                 gathered_image2_features[rank] = image2_features
-                gathered_text_features[rank] = text_features
+                gathered_text1_features[rank] = text1_features
+                gathered_text2_features[rank] = text2_features
                 gathered_sentence1_features[rank] = sentence1_features
                 gathered_sentence2_features[rank] = sentence2_features
 
                 all_image1_features = torch.cat(gathered_image1_features, dim=0)
                 all_image2_featuress = torch.cat(gathered_image2_features, dim=0)
-                all_text_features = torch.cat(gathered_text_features, dim=0)
+                all_text1_features = torch.cat(gathered_text1_features, dim=0)
+                all_text2_features = torch.cat(gathered_text2_features, dim=0)
                 all_sentence1_features = torch.cat(gathered_sentence1_features, dim=0)
                 all_sentence2_features = torch.cat(gathered_sentence2_features, dim=0)
     else:
@@ -67,34 +72,39 @@ def gather_features(
         if gather_with_grad:
             all_image1_features = torch.cat(torch.distributed.nn.all_gather(image1_features), dim=0)
             all_image2_featuress = torch.cat(torch.distributed.nn.all_gather(image2_features), dim=0)            
-            all_text_features = torch.cat(torch.distributed.nn.all_gather(text_features), dim=0)
+            all_text1_features = torch.cat(torch.distributed.nn.all_gather(text1_features), dim=0)
+            all_text2_features = torch.cat(torch.distributed.nn.all_gather(text2_features), dim=0)
             all_sentence1_features = torch.cat(torch.distributed.nn.all_gather(sentence1_features), dim=0)
             all_sentence2_features = torch.cat(torch.distributed.nn.all_gather(sentence2_features), dim=0)
         else:
             gathered_image1_features = [torch.zeros_like(image1_features) for _ in range(world_size)]
             gathered_image2_features = [torch.zeros_like(image2_features) for _ in range(world_size)]
-            gathered_text_features = [torch.zeros_like(text_features) for _ in range(world_size)]
+            gathered_text1_features = [torch.zeros_like(text1_features) for _ in range(world_size)]
+            gathered_text2_features = [torch.zeros_like(text2_features) for _ in range(world_size)]
             gathered_sentence1_features = [torch.zeros_like(sentence1_features) for _ in range(world_size)]
             gathered_sentence2_features = [torch.zeros_like(sentence2_features) for _ in range(world_size)]
             dist.all_gather(gathered_image1_features, image1_features)
             dist.all_gather(gathered_image2_features, image2_features)
-            dist.all_gather(gathered_text_features, text_features)
+            dist.all_gather(gathered_text1_features, text1_features)
+            dist.all_gather(gathered_text2_features, text2_features)
             dist.all_gather(gathered_sentence1_features, sentence1_features)
             dist.all_gather(gathered_sentence2_features, sentence2_features)
             if not local_loss:
                 # ensure grads for local rank when all_* features don't have a gradient
                 gathered_image1_features[rank] = image1_features
                 gathered_image2_features[rank] = image2_features
-                gathered_text_features[rank] = text_features
+                gathered_text1_features[rank] = text1_features
+                gathered_text2_features[rank] = text2_features
                 gathered_sentence1_features[rank] = sentence1_features
                 gathered_sentence2_features[rank] = sentence2_features
             all_image1_features = torch.cat(gathered_image1_features, dim=0)
             all_image2_features = torch.cat(gathered_image2_features, dim=0)
-            all_text_features = torch.cat(gathered_text_features, dim=0)
+            all_text1_features = torch.cat(gathered_text1_features, dim=0)
+            all_text2_features = torch.cat(gathered_text2_features, dim=0)
             all_sentence1_features = torch.cat(gathered_sentence1_features, dim=0)
             all_sentence2_features = torch.cat(gathered_sentence2_features, dim=0)
 
-    return all_image1_features, all_image2_features, all_text_features, all_sentence1_features, all_sentence2_features
+    return all_image1_features, all_image2_features, all_text1_features, all_text2_features, all_sentence1_features, all_sentence2_features
 
 
 class ClipLoss(nn.Module):
@@ -137,42 +147,60 @@ class ClipLoss(nn.Module):
             labels = self.labels[device]
         return labels
 
-    def get_logits(self, image1_features, image2_features, text_features, sentence1_features, sentence2_features, logit_scale):
+    def get_logits(self, image1_features, image2_features, text1_features, text2_features, sentence1_features, sentence2_features, logit_scale):
         if self.world_size > 1:
-            all_image1_features, all_image2_features, all_text_features, all_sentence1_features, all_sentence2_features = gather_features(
-                image1_features, image2_features, text_features, sentence1_features, sentence2_features,
+            all_image1_features, all_image2_features, all_text1_features, all_text2_features, all_sentence1_features, all_sentence2_features = gather_features(
+                image1_features, image2_features, text1_features, text2_features, sentence1_features, sentence2_features,
                 self.local_loss, self.gather_with_grad, self.rank, self.world_size, self.use_horovod)
 
             if self.local_loss:
-                logits_per_image1 = logit_scale * image1_features @ all_text_features.T
-                logits_per_image2 = logit_scale * image2_features @ all_text_features.T
-                logits_per_text1 = logit_scale * text_features @ all_image1_features.T
-                logits_per_text2 = logit_scale * text_features @ all_image2_features.T
+                logits_per_image11 = logit_scale * image1_features @ all_text1_features.T
+                logits_per_image12 = logit_scale * image1_features @ all_text2_features.T
+                logits_per_image21 = logit_scale * image2_features @ all_text1_features.T
+                logits_per_image22 = logit_scale * image2_features @ all_text2_features.T
+                logits_per_text11 = logit_scale * text1_features @ all_image1_features.T
+                logits_per_text12 = logit_scale * text1_features @ all_image2_features.T
+                logits_per_text21 = logit_scale * text2_features @ all_image1_features.T
+                logits_per_text22 = logit_scale * text2_features @ all_image2_features.T
             else:
-                logits_per_image1 = logit_scale * all_image1_features @ all_text_features.T
-                logits_per_image2 = logit_scale * all_image2_features @ all_text_features.T
-                logits_per_text1 = logits_per_image1.T
-                logits_per_text2 = logits_per_image2.T
+                logits_per_image11 = logit_scale * all_image1_features @ all_text1_features.T
+                logits_per_image12 = logit_scale * all_image1_features @ all_text2_features.T
+                logits_per_image21 = logit_scale * all_image2_features @ all_text1_features.T
+                logits_per_image22 = logit_scale * all_image2_features @ all_text2_features.T
+                logits_per_text11 = logits_per_image11.T
+                logits_per_text12 = logits_per_image21.T
+                logits_per_text21 = logits_per_image12.T
+                logits_per_text22 = logits_per_image22.T
         else:
-            logits_per_image1 = logit_scale * image1_features @ text_features.T
-            logits_per_image2 = logit_scale * image2_features @ text_features.T
-            logits_per_text1 = logit_scale * text_features @ image1_features.T
-            logits_per_text2 = logit_scale * text_features @ image2_features.T
+            logits_per_image11 = logit_scale * image1_features @ text1_features.T
+            logits_per_image12 = logit_scale * image1_features @ text2_features.T
+            logits_per_image21 = logit_scale * image2_features @ text1_features.T
+            logits_per_image22 = logit_scale * image2_features @ text2_features.T
+            logits_per_text11 = logit_scale * text1_features @ image1_features.T
+            logits_per_text12 = logit_scale * text1_features @ image2_features.T
+            logits_per_text21 = logit_scale * text1_features @ image1_features.T
+            logits_per_text22 = logit_scale * text1_features @ image2_features.T
         
-        return logits_per_image1, logits_per_image2, logits_per_text1, logits_per_text2, all_sentence1_features, all_sentence2_features
+        return logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, all_sentence1_features, all_sentence2_features
 
-    def forward(self, image1_features, image2_features, text_features, sentence1_features, sentence2_features, logit_scale, output_dict=False):
+    def forward(self, image1_features, image2_features, text1_features, text2_features, sentence1_features, sentence2_features, logit_scale, output_dict=False):
         device = image1_features.device
-        logits_per_image1, logits_per_image2, logits_per_text1, logits_per_text2, all_sentence1_features, all_sentence2_features = self.get_logits(image1_features, image2_features, text_features, sentence1_features, sentence2_features, logit_scale)
+        logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, all_sentence1_features, all_sentence2_features = self.get_logits(image1_features, image2_features, text1_features, text2_features, sentence1_features, sentence2_features, logit_scale)
 
-        labels = self.get_ground_truth(device, logits_per_image1.shape[0])
+        labels = self.get_ground_truth(device, logits_per_image11.shape[0])
 
         clip_loss = (
-            F.cross_entropy(logits_per_image1, labels) +
-            F.cross_entropy(logits_per_text1, labels)
+            F.cross_entropy(logits_per_image11, labels) +
+            F.cross_entropy(logits_per_text11, labels)
         ) / 2 + (
-            F.cross_entropy(logits_per_image2, labels) +
-            F.cross_entropy(logits_per_text2, labels)
+            F.cross_entropy(logits_per_image21, labels) +
+            F.cross_entropy(logits_per_text21, labels)
+        ) / 2 + (
+            F.cross_entropy(logits_per_image12, labels) +
+            F.cross_entropy(logits_per_text12, labels)
+        ) / 2 + (
+            F.cross_entropy(logits_per_image22, labels) +
+            F.cross_entropy(logits_per_text22, labels)
         ) / 2
 
 
