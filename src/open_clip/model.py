@@ -428,8 +428,8 @@ class CLIP(nn.Module):
             sentence21_features = self.forward_sentence(image_tokens=image2_tokens, text_tokens=text1_tokens, index_visible=index1_visible)
             sentence22_features = self.forward_sentence(image_tokens=image2_tokens, text_tokens=text2_tokens, index_visible=index2_visible)
 
-            sentence1_features = (sentence11_features + sentence21_features) / 2
-            sentence2_features = (sentence12_features + sentence22_features) / 2
+            sentence1_features = (sentence11_features + sentence12_features) / 2
+            sentence2_features = (sentence21_features + sentence22_features) / 2
             sentence1_features = F.normalize(sentence1_features, dim=-1)
             sentence2_features = F.normalize(sentence2_features, dim=-1)
             if self.output_dict:
