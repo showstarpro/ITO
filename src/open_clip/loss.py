@@ -167,13 +167,13 @@ class ClipLoss(nn.Module):
 
         labels = self.get_ground_truth(device, logits_per_image1.shape[0])
 
-        clip_loss = (
+        clip_loss = ((
             F.cross_entropy(logits_per_image1, labels) +
             F.cross_entropy(logits_per_text1, labels)
         ) / 2 + (
             F.cross_entropy(logits_per_image2, labels) +
             F.cross_entropy(logits_per_text2, labels)
-        ) / 2
+        ) / 2) / 2 
 
 
         logits_per_sentence11 = logit_scale * all_sentence1_features @ all_sentence1_features.T
