@@ -19,6 +19,7 @@ from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler, IterableD
 from torch.utils.data.distributed import DistributedSampler
 from webdataset.filters import _shuffle
 from webdataset.tariterators import base_plus_ext, url_opener, tar_file_expander, valid_sample
+import re
 
 try:
     import horovod.torch as hvd
@@ -324,6 +325,78 @@ class ResampledShards2(IterableDataset):
             else:
                 yield dict(url=self.rng.choices(self.urls, weights=self.weights, k=1)[0])
 
+def random_sample_from_list(captions_list, k, merged_num=1):
+    n = len(captions_list)
+    if merged_num == 1:
+        if n >= k:
+            return random.sample(captions_list, k)
+        else:  #minimizing caption dupilications
+            return random.choices(captions_list, k=k)
+            #return captions_list + random.sample(captions_list, k - n)
+    elif merged_num >= n:
+        return ['. '.join(captions_list)]
+    else:
+        sampled_list = []
+        sampled_indices = draw_numbers(n=n - merged_num, k=k)
+        for sampled_index in sampled_indices:
+            sampled_list.append('. '.join(captions_list[sampled_index:sampled_index + merged_num]))
+        return sampled_list
+
+
+def draw_numbers(n, k=4):
+    population = list(range(0, n))
+    if n >= k:
+        return random.sample(population, k)
+    else:
+        return random.choices(population, k=k)
+
+def sample_dict(text, k=3, tokenizer=None, sampling_mode='diverse_sampling', pixelprose=False, max_merged_num=3):
+
+    def split_caption(text):
+        texts = re.split(r'\n|</s>|[.]', text)
+        subcap = []
+        for text_prompt in texts:
+            text_prompt = text_prompt.strip()
+            if len(text_prompt) != 0:
+                subcap.append(text_prompt)
+        del texts
+        return subcap
+
+    if sampling_mode == 'diverse_sampling':
+        if pixelprose:
+            raw_caption = text["caption"]
+            captions_list = split_caption(raw_caption)
+        else:
+            captions_list = (split_caption(text['caption']) + split_caption(text['shortIB_captions']) + split_caption(text['longIB_captions']) +
+                             split_caption(text['shortSV_captions']) + split_caption(text['longSV_captions']) +
+                             split_caption(text['shortLLA_captions']) + split_caption(text['longLLA_captions']))
+        n_captions = len(captions_list)
+        sampled_sentences = []
+        for _ in range(k):
+            merged_num = random.randint(1, max_merged_num)
+            if merged_num == 1:
+                # Sample one caption
+                sampled_sentence = random.choice(captions_list)
+                sampled_sentences.append(sampled_sentence)
+            else:
+                prob_flag = 0.5 # 50% merging subsequent captions, 50% merging captions from random positions
+                if random.random() < prob_flag:
+                    sampled_sentence_list = random_sample_from_list(
+                        captions_list, k=1, merged_num=merged_num)
+                    sampled_sentences.extend(sampled_sentence_list)
+                else:
+                    # Randomly select captions to merge
+                    if n_captions >= merged_num:
+                        captions_to_merge = random.sample(captions_list, merged_num)
+                    else:
+                        captions_to_merge = [random.choice(captions_list) for _ in range(merged_num)]
+                    # Merge the captions
+                    sampled_sentence = '. '.join(captions_to_merge)
+                    sampled_sentences.append(sampled_sentence)
+        tokenized_sentences = tokenizer(sampled_sentences)
+        return tokenized_sentences
+    else:
+        raise NotImplementedError('Please select a valid sampling method')
 
 def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokenizer=None):
     input_shards = args.train_data if is_train else args.val_data
@@ -391,21 +464,22 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
             img = sample["image"]  # Assume the image is under the key "image"
             image1 = preprocess_img(img)  # Apply first transformation
             image2 = preprocess_img(img)  # Apply first transformation
-            origin_txt = tokenizer(sample['text']['caption'])[0]
-            shortLLA_txt = tokenizer(sample['text']['shortLLA_captions'])[0]
-            longLLA_txt = tokenizer(sample['text']['longLLA_captions'])[0]
-            shortIB_txt = tokenizer(sample['text']['shortIB_captions'])[0]
-            longIB_txt = tokenizer(sample['text']['longIB_captions'])[0]
-            shortSV_txt = tokenizer(sample['text']['shortSV_captions'])[0]
-            longSV_txt = tokenizer(sample['text']['longSV_captions'])[0]
-            return {"image1": image1, "image2": image2, "text0": origin_txt, "text1": longLLA_txt, "text2": longIB_txt, "text3": longSV_txt, "text4": shortLLA_txt, "text5": shortIB_txt, "text6": shortSV_txt}  # Assume "text" is the label key
-        
+            # origin_txt = tokenizer(sample['text']['caption'])[0]
+            # shortLLA_txt = tokenizer(sample['text']['shortLLA_captions'])[0]
+            # longLLA_txt = tokenizer(sample['text']['longLLA_captions'])[0]
+            # shortIB_txt = tokenizer(sample['text']['shortIB_captions'])[0]
+            # longIB_txt = tokenizer(sample['text']['longIB_captions'])[0]
+            # shortSV_txt = tokenizer(sample['text']['shortSV_captions'])[0]
+            # longSV_txt = tokenizer(sample['text']['longSV_captions'])[0]
+            text = sample_dict(sample['text'], k=2, tokenizer=tokenizer)
+            return {"image1": image1, "image2": image2, "text": text}  # Assume "text" is the label key
+        print("start load data!!!!!!")
         pipeline.extend([
             wds.select(filter_no_caption_or_no_image),
             wds.decode("pilrgb", handler=log_and_continue),
             wds.rename(image="jpg;png;jpeg;webp", text="json"),
             wds.map(process_sample),
-            wds.to_tuple("image1", "image2", "text0", "text1", "text2", "text3", "text4", "text5", "text6"),
+            wds.to_tuple("image1", "image2", "text"),
             wds.batched(args.batch_size, partial=not is_train)
         ])
     else:

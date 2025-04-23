@@ -17,6 +17,6 @@ torchrun --nproc_per_node 2 -m open_clip_train.main \
     --epochs 30 \
     --model "ViT-B-16" \
     --coca-caption-loss-weight 0 --coca-contrastive-loss-weight 0 \
-    --name ito_text_tt4 --alpha 2 \
+    --name ito_text_sub_t5 --alpha 2 \
     --aug \
     --aug-cfg gray_scale_prob=0.2 color_jitter=0.4,0.4,0.4,0.1 color_jitter_prob=0.8 scale=0.5,1.0 
