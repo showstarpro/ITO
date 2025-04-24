@@ -35,6 +35,7 @@ from open_clip_train.logger import setup_logging
 from open_clip_train.params import parse_args
 from open_clip_train.scheduler import cosine_lr, const_lr, const_lr_cooldown
 from open_clip_train.train import train_one_epoch, evaluate
+from open_clip_train.retrieval import recall_at_k, recall_at_k_docci
 from open_clip_train.file_utils import pt_load, check_exists, start_sync_process, remote_sync
 
 
@@ -473,7 +474,23 @@ def main(args):
             from open_clip.utils import convert_int8_model_to_inference_mode
             convert_int8_model_to_inference_mode(model)
         # Evaluate.
-        evaluate(model, data, start_epoch, args, tb_writer=writer, tokenizer=tokenizer)
+        if args.ms_coco or args.flickr or args.docci:
+            k_vals=[1, 5, 10]
+            # t2i, i2t = recall_at_k(model, data, args.device, k_vals, args.batch_size )
+            if args.docci:
+                t2i, i2t = recall_at_k_docci(model, data, args.device, k_vals, args.batch_size )
+            else:
+                t2i, i2t = recall_at_k(model, data, args.device, k_vals, args.batch_size )
+            print("Text-to-image Recall@K")
+            for k, x in zip(k_vals, t2i):
+                print(f" R@{k}: {100*x:.2f}%")
+
+            print("Image-to-text Recall@K")
+            for k, x in zip(k_vals, i2t):
+                print(f" R@{k}: {100*x:.2f}%")
+            return
+        else:
+            evaluate(model, data, start_epoch, args, tb_writer=writer, tokenizer=tokenizer)
         return
 
     loss = create_loss(args)

@@ -102,6 +102,105 @@ def parse_args(args):
         help="Path to imagenet v2 for conducting zero shot evaluation.",
     )
     parser.add_argument(
+        "--imagenet-train",
+        type=str,
+        default=None,
+        help="Path to imagenet train set for conducting linear probing evaluation.",
+    )
+    parser.add_argument(
+        "--cifar10",
+        type=str,
+        default=None,
+        help="Path to cifar10 for conducting zero shot evaluation.",
+    )
+    parser.add_argument(
+        "--cifar100",
+        type=str,
+        default=None,
+        help="Path to cifar100 for conducting zero shot evaluation.",
+    )
+    parser.add_argument(
+        "--linear_probe_num_epochs", type=int, default=30, help="Number of epochs to train for."
+    )
+    parser.add_argument(
+        "--imagenet-sketch",
+        type=str,
+        default=None,
+        help="Path to imagenet-sketch for conducting zero shot evaluation.",
+    )
+    parser.add_argument(
+        "--imagenet-a",
+        type=str,
+        default=None,
+        help="Path to imagenet-a for conducting zero shot evaluation.",
+    )
+    parser.add_argument(
+        "--imagenet-o",
+        type=str,
+        default=None,
+        help="Path to imagenet-o for conducting zero shot evaluation.",
+    )
+    parser.add_argument(
+        "--imagenet-r",
+        type=str,
+        default=None,
+        help="Path to imagenet-r for conducting zero shot evaluation.",
+    )
+    parser.add_argument(
+        "--flowers-102",
+        type=str,
+        default=None,
+        help="Path to flowers_102 for conducting classification.",
+    )
+    parser.add_argument(
+        "--food-101",
+        type=str,
+        default=None,
+        help="Path to food-101 for conducting classification.",
+    )
+    parser.add_argument(
+        "--stanford",
+        type=str,
+        default=None,
+        help="Path to stanford cars for conducting classification.",
+    )
+    parser.add_argument(
+        "--ms-coco",
+        type=str,
+        default=None,
+        help="Path to ms-coco dataset.",
+    )
+    parser.add_argument(
+        "--ms-coco-annot",
+        type=str,
+        default=None,
+        help="Path to ms-coco annotation dataset.",
+    )
+    parser.add_argument(
+        "--flickr",
+        type=str,
+        default=None,
+        help="Path to flickr dataset.",
+    )
+    parser.add_argument(
+        "--flickr-annot",
+        type=str,
+        default=None,
+        help="Path to flickr annotation dataset.",
+    )
+    parser.add_argument(
+        "--pets",
+        type=str,
+        default=None,
+        help="Path to pets for conducting classification.",
+    )
+    parser.add_argument(
+        "--docci",
+        type=str,
+        default=None,
+        help="Path to docci test dataset.",
+    )
+    parser.add_argument(
         "--cache-dir",
         type=str,
         default=None,
