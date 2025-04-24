@@ -415,6 +415,7 @@ class CLIP(nn.Module):
             
             text1 = text[:, 0]
             text2 = text[:, 1]
+            text3 = text[:, 2]
         
             ## aug 
             image1_features, image1_tokens = self.encode_image(image1, normalize=True) if image1 is not None else None
@@ -422,6 +423,7 @@ class CLIP(nn.Module):
 
             text1_features, text1_tokens, index1_visible = self.encode_text(text1, normalize=True) if text1 is not None else None
             text2_features, text2_tokens, index2_visible = self.encode_text(text2, normalize=True) if text2 is not None else None
+            text3_features, text3_tokens, index3_visible = self.encode_text(text3, normalize=True) if text3 is not None else None
 
             sentence11_features = self.forward_sentence(image_tokens=image1_tokens, text_tokens=text1_tokens, index_visible=index1_visible)
             sentence12_features = self.forward_sentence(image_tokens=image1_tokens, text_tokens=text2_tokens, index_visible=index2_visible)
@@ -438,6 +440,7 @@ class CLIP(nn.Module):
                     "image2_features": image2_features,
                     "text1_features": text1_features,
                     "text2_features": text2_features,
+                    "text3_features": text3_features,
                     "sentence11_features": sentence11_features,
                     "sentence12_features": sentence12_features,
                     "sentence21_features": sentence21_features,

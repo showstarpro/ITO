@@ -472,7 +472,7 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
                 # longIB_txt = tokenizer(sample['text']['longIB_captions'])[0]
                 # shortSV_txt = tokenizer(sample['text']['shortSV_captions'])[0]
                 # longSV_txt = tokenizer(sample['text']['longSV_captions'])[0]
-                text = sample_dict(sample['text'], k=2, tokenizer=tokenizer)
+                text = sample_dict(sample['text'], k=3, tokenizer=tokenizer)
                 return {"image1": image1, "image2": image2, "text": text}  # Assume "text" is the label key
             pipeline.extend([
                 wds.select(filter_no_caption_or_no_image),

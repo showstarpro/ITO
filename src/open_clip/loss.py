@@ -19,7 +19,7 @@ import torch.nn.functional as F
 
 def gather_features( 
         image1_features, image2_features, 
-        text1_features, text2_features,
+        text1_features, text2_features, text3_features,
         sentence11_features, sentence12_features, sentence21_features, sentence22_features,
         local_loss=False,
         gather_with_grad=False,
@@ -35,6 +35,7 @@ def gather_features(
             all_image2_features = hvd.allgather(image2_features)
             all_text1_features = hvd.allgather(text1_features)
             all_text2_features = hvd.allgather(text2_features)
+            all_text3_features = hvd.allgather(text3_features)
             all_sentence11_features = hvd.allgather(sentence11_features)
             all_sentence12_features = hvd.allgather(sentence12_features)
             all_sentence21_features = hvd.allgather(sentence21_features)
@@ -45,6 +46,7 @@ def gather_features(
                 all_image2_features = hvd.allgather(image2_features)
                 all_text1_features = hvd.allgather(text1_features)
                 all_text2_features = hvd.allgather(text2_features)
+                all_text3_features = hvd.allgather(text3_features)
                 all_sentence11_features = hvd.allgather(sentence11_features)
                 all_sentence12_features = hvd.allgather(sentence12_features)
                 all_sentence21_features = hvd.allgather(sentence21_features)
@@ -55,6 +57,7 @@ def gather_features(
                 gathered_image2_features = list(all_image2_features.chunk(world_size, dim=0))
                 gathered_text1_features = list(all_text1_features.chunk(world_size, dim=0))
                 gathered_text2_features = list(all_text2_features.chunk(world_size, dim=0))
+                gathered_text3_features = list(all_text3_features.chunk(world_size, dim=0))
                 gathered_sentence11_features = list(all_sentence11_features.chunk(world_size, dim=0))
                 gathered_sentence12_features = list(all_sentence12_features.chunk(world_size, dim=0))
                 gathered_sentence21_features = list(all_sentence21_features.chunk(world_size, dim=0))
@@ -64,6 +67,7 @@ def gather_features(
                 gathered_image2_features[rank] = image2_features
                 gathered_text1_features[rank] = text1_features
                 gathered_text2_features[rank] = text2_features
+                gathered_text3_features[rank] = text3_features
                 gathered_sentence11_features[rank] = sentence11_features
                 gathered_sentence12_features[rank] = sentence12_features
                 gathered_sentence21_features[rank] = sentence21_features
@@ -73,6 +77,7 @@ def gather_features(
                 all_image2_featuress = torch.cat(gathered_image2_features, dim=0)
                 all_text1_features = torch.cat(gathered_text1_features, dim=0)
                 all_text2_features = torch.cat(gathered_text2_features, dim=0)
+                all_text3_features = torch.cat(gathered_text3_features, dim=0)
                 all_sentence11_features = torch.cat(gathered_sentence11_features, dim=0)
                 all_sentence12_features = torch.cat(gathered_sentence12_features, dim=0)
                 all_sentence21_features = torch.cat(gathered_sentence21_features, dim=0)
@@ -84,6 +89,7 @@ def gather_features(
             all_image2_featuress = torch.cat(torch.distributed.nn.all_gather(image2_features), dim=0)            
             all_text1_features = torch.cat(torch.distributed.nn.all_gather(text1_features), dim=0)
             all_text2_features = torch.cat(torch.distributed.nn.all_gather(text2_features), dim=0)
+            all_text3_features = torch.cat(torch.distributed.nn.all_gather(text3_features), dim=0)
             all_sentence11_features = torch.cat(torch.distributed.nn.all_gather(sentence11_features), dim=0)
             all_sentence12_features = torch.cat(torch.distributed.nn.all_gather(sentence12_features), dim=0)
             all_sentence21_features = torch.cat(torch.distributed.nn.all_gather(sentence21_features), dim=0)
@@ -93,6 +99,7 @@ def gather_features(
             gathered_image2_features = [torch.zeros_like(image2_features) for _ in range(world_size)]
             gathered_text1_features = [torch.zeros_like(text1_features) for _ in range(world_size)]
             gathered_text2_features = [torch.zeros_like(text2_features) for _ in range(world_size)]
+            gathered_text3_features = [torch.zeros_like(text3_features) for _ in range(world_size)]
             gathered_sentence11_features = [torch.zeros_like(sentence11_features) for _ in range(world_size)]
             gathered_sentence12_features = [torch.zeros_like(sentence12_features) for _ in range(world_size)]
             gathered_sentence21_features = [torch.zeros_like(sentence21_features) for _ in range(world_size)]
@@ -101,6 +108,7 @@ def gather_features(
             dist.all_gather(gathered_image2_features, image2_features)
             dist.all_gather(gathered_text1_features, text1_features)
             dist.all_gather(gathered_text2_features, text2_features)
+            dist.all_gather(gathered_text3_features, text3_features)
             dist.all_gather(gathered_sentence11_features, sentence11_features)
             dist.all_gather(gathered_sentence12_features, sentence12_features)
             dist.all_gather(gathered_sentence21_features, sentence21_features)
@@ -111,6 +119,7 @@ def gather_features(
                 gathered_image2_features[rank] = image2_features
                 gathered_text1_features[rank] = text1_features
                 gathered_text2_features[rank] = text2_features
+                gathered_text3_features[rank] = text3_features
                 gathered_sentence11_features[rank] = sentence11_features
                 gathered_sentence12_features[rank] = sentence12_features
                 gathered_sentence21_features[rank] = sentence21_features
@@ -119,12 +128,13 @@ def gather_features(
             all_image2_features = torch.cat(gathered_image2_features, dim=0)
             all_text1_features = torch.cat(gathered_text1_features, dim=0)
             all_text2_features = torch.cat(gathered_text2_features, dim=0)
+            all_text3_features = torch.cat(gathered_text3_features, dim=0)
             all_sentence11_features = torch.cat(gathered_sentence11_features, dim=0)
             all_sentence12_features = torch.cat(gathered_sentence12_features, dim=0)
             all_sentence21_features = torch.cat(gathered_sentence21_features, dim=0)
             all_sentence22_features = torch.cat(gathered_sentence22_features, dim=0)
 
-    return all_image1_features, all_image2_features, all_text1_features, all_text2_features, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features
+    return all_image1_features, all_image2_features, all_text1_features, all_text2_features, all_text3_features, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features
 
 
 class ClipLoss(nn.Module):
@@ -167,10 +177,10 @@ class ClipLoss(nn.Module):
             labels = self.labels[device]
         return labels
 
-    def get_logits(self, image1_features, image2_features, text1_features, text2_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale):
+    def get_logits(self, image1_features, image2_features, text1_features, text2_features, text3_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale):
         if self.world_size > 1:
-            all_image1_features, all_image2_features, all_text1_features, all_text2_features, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features = gather_features(
-                image1_features, image2_features, text1_features, text2_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features,
+            all_image1_features, all_image2_features, all_text1_features, all_text2_features, all_text3_features, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features = gather_features(
+                image1_features, image2_features, text1_features, text2_features, text3_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features,
                 self.local_loss, self.gather_with_grad, self.rank, self.world_size, self.use_horovod)
 
             if self.local_loss:
@@ -182,6 +192,12 @@ class ClipLoss(nn.Module):
                 logits_per_text12 = logit_scale * text1_features @ all_image2_features.T
                 logits_per_text21 = logit_scale * text2_features @ all_image1_features.T
                 logits_per_text22 = logit_scale * text2_features @ all_image2_features.T
+                
+                logits_per_image13 = logit_scale * image1_features @ all_text3_features.T
+                logits_per_image23 = logit_scale * image2_features @ all_text3_features.T
+                logits_per_text31 = logit_scale * text3_features @ all_image1_features.T
+                logits_per_text32 = logit_scale * text3_features @ all_image2_features.T
+                
             else:
                 logits_per_image11 = logit_scale * all_image1_features @ all_text1_features.T
                 logits_per_image12 = logit_scale * all_image1_features @ all_text2_features.T
@@ -191,6 +207,11 @@ class ClipLoss(nn.Module):
                 logits_per_text12 = logits_per_image21.T
                 logits_per_text21 = logits_per_image12.T
                 logits_per_text22 = logits_per_image22.T
+                
+                logits_per_image13 = logit_scale * all_image1_features @ all_text3_features.T
+                logits_per_image23 = logit_scale * all_image2_features @ all_text3_features.T
+                logits_per_text31 = logits_per_image13.T
+                logits_per_text32 = logits_per_image23.T
         else:
             logits_per_image11 = logit_scale * image1_features @ text1_features.T
             logits_per_image12 = logit_scale * image1_features @ text2_features.T
@@ -200,12 +221,17 @@ class ClipLoss(nn.Module):
             logits_per_text12 = logit_scale * text1_features @ image2_features.T
             logits_per_text21 = logit_scale * text1_features @ image1_features.T
             logits_per_text22 = logit_scale * text1_features @ image2_features.T
+            
+            logits_per_image13 = logit_scale * image1_features @ text3_features.T
+            logits_per_image23 = logit_scale * image2_features @ text3_features.T
+            logits_per_text31 = logit_scale * text3_features @ image1_features.T
+            logits_per_text32 = logit_scale * text3_features @ image2_features.T
         
-        return logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features
+        return logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, logits_per_image13, logits_per_image23, logits_per_text31, logits_per_text32, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features
 
-    def forward(self, image1_features, image2_features, text1_features, text2_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale, output_dict=False):
+    def forward(self, image1_features, image2_features, text1_features, text2_features, text3_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale, output_dict=False):
         device = image1_features.device
-        logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features = self.get_logits(image1_features, image2_features, text1_features, text2_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale)
+        logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, logits_per_image13, logits_per_image23, logits_per_text31, logits_per_text32, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features = self.get_logits(image1_features, image2_features, text1_features, text2_features, text3_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale)
 
         labels = self.get_ground_truth(device, logits_per_image11.shape[0])
 
@@ -221,7 +247,13 @@ class ClipLoss(nn.Module):
         ) / 2 + (
             F.cross_entropy(logits_per_image22, labels) +
             F.cross_entropy(logits_per_text22, labels)
-        ) / 2 ) / 4
+        ) / 2 + (
+            F.cross_entropy(logits_per_image13, labels) +
+            F.cross_entropy(logits_per_text31, labels)
+        ) / 2 + (
+            F.cross_entropy(logits_per_image23, labels) +
+            F.cross_entropy(logits_per_text32, labels)
+        ) / 2 ) / 6
 
 
         logits_per_sentence11_11 = logit_scale * all_sentence11_features @ all_sentence11_features.T
