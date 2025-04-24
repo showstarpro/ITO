@@ -476,7 +476,13 @@ def parse_args(args):
         "--aug",
         default=False,
         action="store_true",
-        help='Use SigLip (sigmoid) loss.'
+        help='Use augmentation for image.'
+    )
+    parser.add_argument(
+        "--pixelprose",
+        default=False,
+        action="store_true",
+        help='Use the origin dataset.'
     )
 
 

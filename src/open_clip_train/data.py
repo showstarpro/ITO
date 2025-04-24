@@ -364,7 +364,7 @@ def sample_dict(text, k=3, tokenizer=None, sampling_mode='diverse_sampling', pix
 
     if sampling_mode == 'diverse_sampling':
         if pixelprose:
-            raw_caption = text["caption"]
+            raw_caption = text
             captions_list = split_caption(raw_caption)
         else:
             captions_list = (split_caption(text['caption']) + split_caption(text['shortIB_captions']) + split_caption(text['longIB_captions']) +
@@ -460,28 +460,50 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
             wds.tarfile_to_samples(handler=log_and_continue),
         ])
     if args.aug:
-        def process_sample(sample):
-            img = sample["image"]  # Assume the image is under the key "image"
-            image1 = preprocess_img(img)  # Apply first transformation
-            image2 = preprocess_img(img)  # Apply first transformation
-            # origin_txt = tokenizer(sample['text']['caption'])[0]
-            # shortLLA_txt = tokenizer(sample['text']['shortLLA_captions'])[0]
-            # longLLA_txt = tokenizer(sample['text']['longLLA_captions'])[0]
-            # shortIB_txt = tokenizer(sample['text']['shortIB_captions'])[0]
-            # longIB_txt = tokenizer(sample['text']['longIB_captions'])[0]
-            # shortSV_txt = tokenizer(sample['text']['shortSV_captions'])[0]
-            # longSV_txt = tokenizer(sample['text']['longSV_captions'])[0]
-            text = sample_dict(sample['text'], k=2, tokenizer=tokenizer)
-            return {"image1": image1, "image2": image2, "text": text}  # Assume "text" is the label key
-        print("start load data!!!!!!")
-        pipeline.extend([
-            wds.select(filter_no_caption_or_no_image),
-            wds.decode("pilrgb", handler=log_and_continue),
-            wds.rename(image="jpg;png;jpeg;webp", text="json"),
-            wds.map(process_sample),
-            wds.to_tuple("image1", "image2", "text"),
-            wds.batched(args.batch_size, partial=not is_train)
-        ])
+        if args.pixelprose == False:
+            def process_sample(sample):
+                img = sample["image"]  # Assume the image is under the key "image"
+                image1 = preprocess_img(img)  # Apply first transformation
+                image2 = preprocess_img(img)  # Apply first transformation
+                # origin_txt = tokenizer(sample['text']['caption'])[0]
+                # shortLLA_txt = tokenizer(sample['text']['shortLLA_captions'])[0]
+                # longLLA_txt = tokenizer(sample['text']['longLLA_captions'])[0]
+                # shortIB_txt = tokenizer(sample['text']['shortIB_captions'])[0]
+                # longIB_txt = tokenizer(sample['text']['longIB_captions'])[0]
+                # shortSV_txt = tokenizer(sample['text']['shortSV_captions'])[0]
+                # longSV_txt = tokenizer(sample['text']['longSV_captions'])[0]
+                text = sample_dict(sample['text'], k=2, tokenizer=tokenizer)
+                return {"image1": image1, "image2": image2, "text": text}  # Assume "text" is the label key
+            pipeline.extend([
+                wds.select(filter_no_caption_or_no_image),
+                wds.decode("pilrgb", handler=log_and_continue),
+                wds.rename(image="jpg;png;jpeg;webp", text="json"),
+                wds.map(process_sample),
+                wds.to_tuple("image1", "image2", "text"),
+                wds.batched(args.batch_size, partial=not is_train)
+            ])
+        else:
+            def process_sample(sample):
+                img = sample["image"]  # Assume the image is under the key "image"
+                image1 = preprocess_img(img)  # Apply first transformation
+                image2 = preprocess_img(img)  # Apply first transformation
+                # origin_txt = tokenizer(sample['text']['caption'])[0]
+                # shortLLA_txt = tokenizer(sample['text']['shortLLA_captions'])[0]
+                # longLLA_txt = tokenizer(sample['text']['longLLA_captions'])[0]
+                # shortIB_txt = tokenizer(sample['text']['shortIB_captions'])[0]
+                # longIB_txt = tokenizer(sample['text']['longIB_captions'])[0]
+                # shortSV_txt = tokenizer(sample['text']['shortSV_captions'])[0]
+                # longSV_txt = tokenizer(sample['text']['longSV_captions'])[0]
+                text = sample_dict(sample['text'], k=2, tokenizer=tokenizer, pixelprose=args.pixelprose)
+                return {"image1": image1, "image2": image2, "text": text}  # Assume "text" is the label key
+            pipeline.extend([
+                wds.select(filter_no_caption_or_no_image),
+                wds.decode("pilrgb", handler=log_and_continue),
+                wds.rename(image="jpg;png;jpeg;webp", text="txt"),
+                wds.map(process_sample),
+                wds.to_tuple("image1", "image2", "text"),
+                wds.batched(args.batch_size, partial=not is_train)
+            ])
     else:
         pipeline.extend([
             wds.select(filter_no_caption_or_no_image),
