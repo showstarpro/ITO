@@ -20,7 +20,7 @@ import torch.nn.functional as F
 def gather_features( 
         image1_features, image2_features, 
         text1_features, text2_features, text3_features,
-        sentence11_features, sentence12_features, sentence21_features, sentence22_features,
+        sentence_features,
         local_loss=False,
         gather_with_grad=False,
         rank=0,
@@ -36,10 +36,7 @@ def gather_features(
             all_text1_features = hvd.allgather(text1_features)
             all_text2_features = hvd.allgather(text2_features)
             all_text3_features = hvd.allgather(text3_features)
-            all_sentence11_features = hvd.allgather(sentence11_features)
-            all_sentence12_features = hvd.allgather(sentence12_features)
-            all_sentence21_features = hvd.allgather(sentence21_features)
-            all_sentence22_features = hvd.allgather(sentence22_features)
+            all_sentence_features = hvd.allgather(sentence_features)
         else:
             with torch.no_grad():
                 all_image1_features = hvd.allgather(image1_features)
@@ -47,10 +44,7 @@ def gather_features(
                 all_text1_features = hvd.allgather(text1_features)
                 all_text2_features = hvd.allgather(text2_features)
                 all_text3_features = hvd.allgather(text3_features)
-                all_sentence11_features = hvd.allgather(sentence11_features)
-                all_sentence12_features = hvd.allgather(sentence12_features)
-                all_sentence21_features = hvd.allgather(sentence21_features)
-                all_sentence22_features = hvd.allgather(sentence22_features)
+                all_sentence_features = hvd.allgather(sentence_features)
             if not local_loss:
                 # ensure grads for local rank when all_* features don't have a gradient
                 gathered_image1_features = list(all_image1_features.chunk(world_size, dim=0))
@@ -58,30 +52,21 @@ def gather_features(
                 gathered_text1_features = list(all_text1_features.chunk(world_size, dim=0))
                 gathered_text2_features = list(all_text2_features.chunk(world_size, dim=0))
                 gathered_text3_features = list(all_text3_features.chunk(world_size, dim=0))
-                gathered_sentence11_features = list(all_sentence11_features.chunk(world_size, dim=0))
-                gathered_sentence12_features = list(all_sentence12_features.chunk(world_size, dim=0))
-                gathered_sentence21_features = list(all_sentence21_features.chunk(world_size, dim=0))
-                gathered_sentence22_features = list(all_sentence22_features.chunk(world_size, dim=0))
+                gathered_sentence_features = list(all_sentence_features.chunk(world_size, dim=0))
 
                 gathered_image1_features[rank] = image1_features
                 gathered_image2_features[rank] = image2_features
                 gathered_text1_features[rank] = text1_features
                 gathered_text2_features[rank] = text2_features
                 gathered_text3_features[rank] = text3_features
-                gathered_sentence11_features[rank] = sentence11_features
-                gathered_sentence12_features[rank] = sentence12_features
-                gathered_sentence21_features[rank] = sentence21_features
-                gathered_sentence22_features[rank] = sentence22_features
+                gathered_sentence_features[rank] = sentence_features
 
                 all_image1_features = torch.cat(gathered_image1_features, dim=0)
                 all_image2_featuress = torch.cat(gathered_image2_features, dim=0)
                 all_text1_features = torch.cat(gathered_text1_features, dim=0)
                 all_text2_features = torch.cat(gathered_text2_features, dim=0)
                 all_text3_features = torch.cat(gathered_text3_features, dim=0)
-                all_sentence11_features = torch.cat(gathered_sentence11_features, dim=0)
-                all_sentence12_features = torch.cat(gathered_sentence12_features, dim=0)
-                all_sentence21_features = torch.cat(gathered_sentence21_features, dim=0)
-                all_sentence22_features = torch.cat(gathered_sentence22_features, dim=0)
+                all_sentence_features = torch.cat(gathered_sentence_features, dim=0)
     else:
         # We gather tensors from all gpus
         if gather_with_grad:
@@ -90,29 +75,20 @@ def gather_features(
             all_text1_features = torch.cat(torch.distributed.nn.all_gather(text1_features), dim=0)
             all_text2_features = torch.cat(torch.distributed.nn.all_gather(text2_features), dim=0)
             all_text3_features = torch.cat(torch.distributed.nn.all_gather(text3_features), dim=0)
-            all_sentence11_features = torch.cat(torch.distributed.nn.all_gather(sentence11_features), dim=0)
-            all_sentence12_features = torch.cat(torch.distributed.nn.all_gather(sentence12_features), dim=0)
-            all_sentence21_features = torch.cat(torch.distributed.nn.all_gather(sentence21_features), dim=0)
-            all_sentence22_features = torch.cat(torch.distributed.nn.all_gather(sentence22_features), dim=0)
+            all_sentence_features = torch.cat(torch.distributed.nn.all_gather(sentence_features), dim=0)
         else:
             gathered_image1_features = [torch.zeros_like(image1_features) for _ in range(world_size)]
             gathered_image2_features = [torch.zeros_like(image2_features) for _ in range(world_size)]
             gathered_text1_features = [torch.zeros_like(text1_features) for _ in range(world_size)]
             gathered_text2_features = [torch.zeros_like(text2_features) for _ in range(world_size)]
             gathered_text3_features = [torch.zeros_like(text3_features) for _ in range(world_size)]
-            gathered_sentence11_features = [torch.zeros_like(sentence11_features) for _ in range(world_size)]
-            gathered_sentence12_features = [torch.zeros_like(sentence12_features) for _ in range(world_size)]
-            gathered_sentence21_features = [torch.zeros_like(sentence21_features) for _ in range(world_size)]
-            gathered_sentence22_features = [torch.zeros_like(sentence22_features) for _ in range(world_size)]
+            gathered_sentence_features = [torch.zeros_like(sentence_features) for _ in range(world_size)]
             dist.all_gather(gathered_image1_features, image1_features)
             dist.all_gather(gathered_image2_features, image2_features)
             dist.all_gather(gathered_text1_features, text1_features)
             dist.all_gather(gathered_text2_features, text2_features)
             dist.all_gather(gathered_text3_features, text3_features)
-            dist.all_gather(gathered_sentence11_features, sentence11_features)
-            dist.all_gather(gathered_sentence12_features, sentence12_features)
-            dist.all_gather(gathered_sentence21_features, sentence21_features)
-            dist.all_gather(gathered_sentence22_features, sentence22_features)
+            dist.all_gather(gathered_sentence_features, sentence_features)
             if not local_loss:
                 # ensure grads for local rank when all_* features don't have a gradient
                 gathered_image1_features[rank] = image1_features
@@ -120,21 +96,15 @@ def gather_features(
                 gathered_text1_features[rank] = text1_features
                 gathered_text2_features[rank] = text2_features
                 gathered_text3_features[rank] = text3_features
-                gathered_sentence11_features[rank] = sentence11_features
-                gathered_sentence12_features[rank] = sentence12_features
-                gathered_sentence21_features[rank] = sentence21_features
-                gathered_sentence22_features[rank] = sentence22_features
+                gathered_sentence_features[rank] = sentence_features
             all_image1_features = torch.cat(gathered_image1_features, dim=0)
             all_image2_features = torch.cat(gathered_image2_features, dim=0)
             all_text1_features = torch.cat(gathered_text1_features, dim=0)
             all_text2_features = torch.cat(gathered_text2_features, dim=0)
             all_text3_features = torch.cat(gathered_text3_features, dim=0)
-            all_sentence11_features = torch.cat(gathered_sentence11_features, dim=0)
-            all_sentence12_features = torch.cat(gathered_sentence12_features, dim=0)
-            all_sentence21_features = torch.cat(gathered_sentence21_features, dim=0)
-            all_sentence22_features = torch.cat(gathered_sentence22_features, dim=0)
+            all_sentence_features = torch.cat(gathered_sentence_features, dim=0)
 
-    return all_image1_features, all_image2_features, all_text1_features, all_text2_features, all_text3_features, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features
+    return all_image1_features, all_image2_features, all_text1_features, all_text2_features, all_text3_features, all_sentence_features
 
 
 class ClipLoss(nn.Module):
@@ -177,10 +147,10 @@ class ClipLoss(nn.Module):
             labels = self.labels[device]
         return labels
 
-    def get_logits(self, image1_features, image2_features, text1_features, text2_features, text3_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale):
+    def get_logits(self, image1_features, image2_features, text1_features, text2_features, text3_features, sentence_features, logit_scale):
         if self.world_size > 1:
-            all_image1_features, all_image2_features, all_text1_features, all_text2_features, all_text3_features, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features = gather_features(
-                image1_features, image2_features, text1_features, text2_features, text3_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features,
+            all_image1_features, all_image2_features, all_text1_features, all_text2_features, all_text3_features, all_sentence_features = gather_features(
+                image1_features, image2_features, text1_features, text2_features, text3_features, sentence_features,
                 self.local_loss, self.gather_with_grad, self.rank, self.world_size, self.use_horovod)
 
             if self.local_loss:
@@ -227,11 +197,48 @@ class ClipLoss(nn.Module):
             logits_per_text31 = logit_scale * text3_features @ image1_features.T
             logits_per_text32 = logit_scale * text3_features @ image2_features.T
         
-        return logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, logits_per_image13, logits_per_image23, logits_per_text31, logits_per_text32, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features
+        return logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, logits_per_image13, logits_per_image23, logits_per_text31, logits_per_text32, all_sentence_features
+    
+    def get_sentence_multipositive_loss(self, all_sentence_features, logit_scale):
+        features = all_sentence_features
+        B, G, D = features.shape
+        device = features.device
+        N = B * G
 
-    def forward(self, image1_features, image2_features, text1_features, text2_features, text3_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale, output_dict=False):
+        # 展开为[N, D]
+        feats = features.view(N, D)  # N = B*G
+
+        # 构造标签，每组一个id，两两比较label判断正负
+        group_labels = torch.arange(B, device=device).repeat_interleave(G)  # [0,0,0,0,1,1,1,1,...]
+
+        # 计算相似度[N,N]
+        sim_matrix = logit_scale * feats @ feats.t()  # [N,N]
+
+        # 构造正样本掩码：同组且不是自己
+        mask_pos = (group_labels.unsqueeze(0) == group_labels.unsqueeze(1)).float()
+        mask_self = torch.eye(N, device=device)
+        mask_pos = mask_pos - mask_self  # 去掉自身
+
+        # softmax分母：所有除自己外
+        logits_mask = 1. - mask_self
+        exp_sim = torch.exp(sim_matrix) * logits_mask
+        denom = exp_sim.sum(dim=1, keepdim=True)
+
+        # log-softmax
+        log_prob = sim_matrix - torch.log(denom + 1e-9)
+
+        # 只计算正样本的平均
+        mean_log_prob_pos = (log_prob * mask_pos).sum(1) / (mask_pos.sum(1) + 1e-9)
+
+        # 损失
+        loss = -mean_log_prob_pos.mean()
+        return loss
+    
+    
+    def forward(self, image1_features, image2_features, text1_features, text2_features, text3_features, sentence_features, logit_scale, output_dict=False):
         device = image1_features.device
-        logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, logits_per_image13, logits_per_image23, logits_per_text31, logits_per_text32, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features = self.get_logits(image1_features, image2_features, text1_features, text2_features, text3_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale)
+        logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, logits_per_image13, logits_per_image23, logits_per_text31, logits_per_text32, all_sentence_features = self.get_logits(
+            image1_features, image2_features, text1_features, text2_features, text3_features, sentence_features, logit_scale)
 
         labels = self.get_ground_truth(device, logits_per_image11.shape[0])
 
@@ -256,46 +263,10 @@ class ClipLoss(nn.Module):
         ) / 2 ) / 6
 
 
-        logits_per_sentence11_11 = logit_scale * all_sentence11_features @ all_sentence11_features.T
-        logits_per_sentence11_11 = logits_per_sentence11_11 - F.one_hot(labels, logits_per_sentence11_11.shape[0]) * 1e9
-        
-        logits_per_sentence11_21 = logit_scale * all_sentence11_features @ all_sentence21_features.T
-        logits_per_sentence11_12 = logit_scale * all_sentence11_features @ all_sentence12_features.T
-        logits_per_sentence11_22 = logit_scale * all_sentence11_features @ all_sentence22_features.T
-        loss_sentence11 = F.cross_entropy(torch.cat([logits_per_sentence11_21, logits_per_sentence11_12, logits_per_sentence11_22, logits_per_sentence11_11], dim=1), labels)
-        
-        
-        logits_per_sentence21_21 = logit_scale * all_sentence21_features @ all_sentence21_features.T
-        logits_per_sentence21_21 = logits_per_sentence21_21 - F.one_hot(labels, logits_per_sentence21_21.shape[0]) * 1e9
-        
-        logits_per_sentence21_11 = logits_per_sentence11_21.T
-        logits_per_sentence21_12 = logit_scale * all_sentence21_features @ all_sentence12_features.T
-        logits_per_sentence21_22 = logit_scale * all_sentence21_features @ all_sentence22_features.T
-        loss_sentence21 = F.cross_entropy(torch.cat([logits_per_sentence21_11, logits_per_sentence21_12, logits_per_sentence21_22, logits_per_sentence21_21], dim=1), labels)
-        
-        loss_sentence1 =  (loss_sentence11 + loss_sentence21) / 2
+        # sentence loss
+        loss_sentence = self.get_sentence_multipositive_loss(all_sentence_features, logit_scale)
 
-        
-        logits_per_sentence12_12 = logit_scale * all_sentence12_features @ all_sentence12_features.T
-        logits_per_sentence12_12 = logits_per_sentence12_12 - F.one_hot(labels, logits_per_sentence12_12.shape[0]) * 1e9
-        
-        logits_per_sentence12_11 = logits_per_sentence11_12.T
-        logits_per_sentence12_21 = logits_per_sentence21_12.T
-        logits_per_sentence12_22 = logit_scale * all_sentence12_features @ all_sentence22_features.T
-        loss_sentence12 = F.cross_entropy(torch.cat([logits_per_sentence12_22, logits_per_sentence12_11, logits_per_sentence12_21, logits_per_sentence12_12], dim=1), labels)
-        
-        
-        logits_per_sentence22_22 = logit_scale * all_sentence22_features @ all_sentence22_features.T
-        logits_per_sentence22_22 = logits_per_sentence22_22 - F.one_hot(labels, logits_per_sentence22_22.shape[0]) * 1e9
-        
-        logits_per_sentence22_11 = logits_per_sentence11_22.T
-        logits_per_sentence22_12 = logits_per_sentence12_22.T
-        logits_per_sentence22_21 = logits_per_sentence21_22.T
-        loss_sentence22 = F.cross_entropy(torch.cat([logits_per_sentence22_12, logits_per_sentence22_11, logits_per_sentence22_21, logits_per_sentence22_22], dim=1), labels)
-        
-        loss_sentence2 =  (loss_sentence12 + loss_sentence22) / 2
-
-        sentence_loss =  self.alpha * (loss_sentence1 + loss_sentence2) / 2
+        sentence_loss =  self.alpha * loss_sentence
 
         if output_dict:
             return {"clip_loss": clip_loss, "sentence_loss": sentence_loss} 
