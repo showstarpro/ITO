@@ -202,7 +202,43 @@ class ClipLoss(nn.Module):
             logits_per_text22 = logit_scale * text1_features @ image2_features.T
         
         return logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features
+    
+    def get_sentence_multipositive_loss(self, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features, logit_scale):
+        features = torch.stack([all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features], dim=1)
+        B, G, D = features.shape
+        device = features.device
+        N = B * G
 
+        # 展开为[N, D]
+        feats = features.view(N, D)  # N = B*G
+
+        # 构造标签，每组一个id，两两比较label判断正负
+        group_labels = torch.arange(B, device=device).repeat_interleave(G)  # [0,0,0,0,1,1,1,1,...]
+
+        # 计算相似度[N,N]
+        sim_matrix = logit_scale * feats @ feats.t()  # [N,N]
+
+        # 构造正样本掩码：同组且不是自己
+        mask_pos = (group_labels.unsqueeze(0) == group_labels.unsqueeze(1)).float()
+        mask_self = torch.eye(N, device=device)
+        mask_pos = mask_pos - mask_self  # 去掉自身
+
+        # softmax分母：所有除自己外
+        logits_mask = 1. - mask_self
+        exp_sim = torch.exp(sim_matrix) * logits_mask
+        denom = exp_sim.sum(dim=1, keepdim=True)
+
+        # log-softmax
+        log_prob = sim_matrix - torch.log(denom + 1e-9)
+
+        # 只计算正样本的平均
+        mean_log_prob_pos = (log_prob * mask_pos).sum(1) / (mask_pos.sum(1) + 1e-9)
+
+        # 损失
+        loss = -mean_log_prob_pos.mean()
+        return loss
+        
+    
     def forward(self, image1_features, image2_features, text1_features, text2_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale, output_dict=False):
         device = image1_features.device
         logits_per_image11, logits_per_image12, logits_per_image21, logits_per_image22, logits_per_text11, logits_per_text12, logits_per_text21, logits_per_text22, all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features = self.get_logits(image1_features, image2_features, text1_features, text2_features, sentence11_features, sentence12_features, sentence21_features, sentence22_features, logit_scale)
@@ -223,47 +259,9 @@ class ClipLoss(nn.Module):
             F.cross_entropy(logits_per_text22, labels)
         ) / 2 ) / 4
 
-
-        logits_per_sentence11_11 = logit_scale * all_sentence11_features @ all_sentence11_features.T
-        logits_per_sentence11_11 = logits_per_sentence11_11 - F.one_hot(labels, logits_per_sentence11_11.shape[0]) * 1e9
-        
-        logits_per_sentence11_21 = logit_scale * all_sentence11_features @ all_sentence21_features.T
-        logits_per_sentence11_12 = logit_scale * all_sentence11_features @ all_sentence12_features.T
-        logits_per_sentence11_22 = logit_scale * all_sentence11_features @ all_sentence22_features.T
-        loss_sentence11 = F.cross_entropy(torch.cat([logits_per_sentence11_21, logits_per_sentence11_12, logits_per_sentence11_22, logits_per_sentence11_11], dim=1), labels)
-        
-        
-        logits_per_sentence21_21 = logit_scale * all_sentence21_features @ all_sentence21_features.T
-        logits_per_sentence21_21 = logits_per_sentence21_21 - F.one_hot(labels, logits_per_sentence21_21.shape[0]) * 1e9
-        
-        logits_per_sentence21_11 = logits_per_sentence11_21.T
-        logits_per_sentence21_12 = logit_scale * all_sentence21_features @ all_sentence12_features.T
-        logits_per_sentence21_22 = logit_scale * all_sentence21_features @ all_sentence22_features.T
-        loss_sentence21 = F.cross_entropy(torch.cat([logits_per_sentence21_11, logits_per_sentence21_12, logits_per_sentence21_22, logits_per_sentence21_21], dim=1), labels)
-        
-        loss_sentence1 =  (loss_sentence11 + loss_sentence21) / 2
-
-        
-        logits_per_sentence12_12 = logit_scale * all_sentence12_features @ all_sentence12_features.T
-        logits_per_sentence12_12 = logits_per_sentence12_12 - F.one_hot(labels, logits_per_sentence12_12.shape[0]) * 1e9
-        
-        logits_per_sentence12_11 = logits_per_sentence11_12.T
-        logits_per_sentence12_21 = logits_per_sentence21_12.T
-        logits_per_sentence12_22 = logit_scale * all_sentence12_features @ all_sentence22_features.T
-        loss_sentence12 = F.cross_entropy(torch.cat([logits_per_sentence12_22, logits_per_sentence12_11, logits_per_sentence12_21, logits_per_sentence12_12], dim=1), labels)
-        
-        
-        logits_per_sentence22_22 = logit_scale * all_sentence22_features @ all_sentence22_features.T
-        logits_per_sentence22_22 = logits_per_sentence22_22 - F.one_hot(labels, logits_per_sentence22_22.shape[0]) * 1e9
-        
-        logits_per_sentence22_11 = logits_per_sentence11_22.T
-        logits_per_sentence22_12 = logits_per_sentence12_22.T
-        logits_per_sentence22_21 = logits_per_sentence21_22.T
-        loss_sentence22 = F.cross_entropy(torch.cat([logits_per_sentence22_12, logits_per_sentence22_11, logits_per_sentence22_21, logits_per_sentence22_22], dim=1), labels)
-        
-        loss_sentence2 =  (loss_sentence12 + loss_sentence22) / 2
-
-        sentence_loss =  self.alpha * (loss_sentence1 + loss_sentence2) / 2
+        # sentence loss
+        sentence_loss = self.get_sentence_multipositive_loss(all_sentence11_features, all_sentence12_features, all_sentence21_features, all_sentence22_features, logit_scale)
+        sentence_loss =  self.alpha * sentence_loss
 
         if output_dict:
             return {"clip_loss": clip_loss, "sentence_loss": sentence_loss} 
