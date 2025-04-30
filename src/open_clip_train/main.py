@@ -8,7 +8,7 @@ import sys
 import random
 from datetime import datetime
 from functools import partial
-
+import torchvision.transforms as transforms
 import numpy as np
 import torch
 from torch import optim
@@ -242,6 +242,24 @@ def main(args):
         load_weights_only=False,
         **model_kwargs,
     )
+    ## change transform
+    if args.test_linear:
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                        std=[0.229, 0.224, 0.225])
+        preprocess_train = transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            lambda x: x.convert('RGB'),
+            transforms.ToTensor(),
+            normalize,
+        ])
+        preprocess_val = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            lambda x: x.convert('RGB'),
+            transforms.ToTensor(),
+            normalize,
+        ])
     if args.distill:
         # FIXME: currently assumes the model you're distilling from has the same tokenizer & transforms.
         dist_model, _, _ = create_model_and_transforms(
@@ -396,7 +414,6 @@ def main(args):
             logging.info(f"=> loaded checkpoint '{args.resume}' (epoch {start_epoch})")
 
     # initialize datasets
-    print(preprocess_train)
     tokenizer = get_tokenizer(args.model, cache_dir=args.cache_dir)
     data = get_data(
         args,

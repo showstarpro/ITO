@@ -1,5 +1,40 @@
-python -m open_clip_train.main \
-    --imagenet-val="/lpai/dataset/imagenet-1k/0-1-0/ILSVRC2012/val"  \
-    --model RN50 \
-    --pretrained "/lpai/open_clip-main/src/checkpoints/rn50-quickgelu-cc12m-f000538c.pt"
-    # --pretrained "/lpai/open_clip-main/src/logs/vit-b-clip/checkpoints/epoch_32.pt"
+# python -m open_clip_train.main \
+    # --imagenet-val="/lpai/dataset/imagenet-1k/0-1-0/ILSVRC2012/val"  \
+    # --model RN50 \
+    # --pretrained "/lpai/open_clip-main/src/checkpoints/rn50-quickgelu-cc12m-f000538c.pt"
+    # # --pretrained "/lpai/open_clip-main/src/logs/vit-b-clip/checkpoints/epoch_32.pt"
+#!/bin/bash
+
+#!/bin/bash
+
+OUTPATH=/lpai/output/models/ito-cc12m-sub2lr1e3b2k/downstreams/linear_probe-pets
+BS=128
+MODEL="ViT-B-16"
+#MODEL="ViT-B-16-512"
+#MODEL="ViT-L-16"
+
+# CHKPNT=/lpai/models/sentence-clip/itocc12m/sentence_img_aug_cc3m_a2_sc05/checkpoints/epoch_30.pt
+# CHKPNT=/lpai/models/ito/dm3mtxt2/ITO_reca_sub2_lr1e3_bs2048/checkpoints/epoch_30.pt
+# CHKPNT=/lpai/volumes/jfs-data-lhp-bd-ga/ito_dreamcc3m/epoch_30.pt
+# CHKPNT=/lpai/volumes/jfs-data-lhp-bd-ga/ito_recap/ITO_reca_sub3_lr1e3_bs2048/checkpoints/epoch_30.pt
+# CHKPNT=/lpai/volumes/jfs-data-lhp-bd-ga/ito_cc3m/sub2lr3e3bs4k/epoch_30.pt
+CHKPNT=/lpai/volumes/jfs-data-lhp-bd-ga/ito-cc12m/sub2lr1e3b2k/epoch_30.pt
+# CHKPNT=/lpai/volumes/jfs-data-lhp-bd-ga/ito-cc12m/sub2lr1e3b4k/epoch_30.pt
+
+CIFAR10=/lpai/volumes/so-volume-bd-ga/lhp/datasets/cifar10
+CIFAR100=/lpai/volumes/so-volume-bd-ga/lhp/datasets/cifar100
+IMAGENETVAL=/lpai/dataset/imagenet-1k/0-1-0/ILSVRC2012/val
+IMAGENETTRAIN=/lpai/dataset/imagenet-1k/0-1-0/train
+FLOWERS102=/lpai/volumes/so-volume-bd-ga/lhp/datasets/flower_102/dataset
+FOOD101=/lpai/volumes/so-volume-bd-ga/lhp/datasets/food_101
+PETS=/lpai/volumes/so-volume-bd-ga/lhp/datasets/pets
+STANFORD=/lpai/volumes/so-volume-bd-ga/lhp/datasets
+
+# python -m open_clip_train.main --logs=$OUTPATH --pretrained $CHKPNT --batch-size=$BS --workers=2 --model $MODEL --imagenet-val=$IMAGENETVAL
+# CUDA_VISIBLE_DEVICES=7 python -m open_clip_train.main --logs=$OUTPATH --pretrained $CHKPNT --batch-size=$BS --workers=2 --model $MODEL --cifar10=$CIFAR10 --test-linear
+# CUDA_VISIBLE_DEVICES=4 python -m open_clip_train.main --logs=$OUTPATH --pretrained $CHKPNT --batch-size=$BS --workers=2 --model $MODEL --cifar100=$CIFAR100 --test-linear
+# CUDA_VISIBLE_DEVICES=1 python -m open_clip_train.main --logs=$OUTPATH --pretrained $CHKPNT --batch-size=$BS --workers=2 --model $MODEL --imagenet-val=$IMAGENETVAL --imagenet-train=$IMAGENETTRAIN --test-linear
+# CUDA_VISIBLE_DEVICES=5 python -m open_clip_train.main --logs=$OUTPATH --pretrained $CHKPNT --batch-size=$BS --workers=2 --model $MODEL --flowers-102=$FLOWERS102 --test-linear
+# CUDA_VISIBLE_DEVICES=2 python -m open_clip_train.main --logs=$OUTPATH --pretrained $CHKPNT --batch-size=$BS --workers=2 --model $MODEL --food-101=$FOOD101 --test-linear
+CUDA_VISIBLE_DEVICES=3 python -m open_clip_train.main --logs=$OUTPATH --pretrained $CHKPNT --batch-size=$BS --workers=2 --model $MODEL --pets=$PETS --test-linear
+# CUDA_VISIBLE_DEVICES=6 python -m open_clip_train.main --logs=$OUTPATH --pretrained $CHKPNT --batch-size=$BS --workers=2 --model $MODEL --stanford=$STANFORD --test-linear

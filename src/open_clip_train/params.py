@@ -201,6 +201,12 @@ def parse_args(args):
         help="Path to docci test dataset.",
     )
     parser.add_argument(
+        "--test-linear",
+        default=False,
+        action="store_true",
+        help="Whether to use sampling with replacement for webdataset shard selection."
+    )
+    parser.add_argument(
         "--cache-dir",
         type=str,
         default=None,

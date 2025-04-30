@@ -150,6 +150,7 @@ def get_imagenet(args, preprocess_fns, split):
         assert data_path
 
         dataset = datasets.ImageFolder(data_path, transform=preprocess_fn)
+    print(preprocess_fn)
 
     if is_train:
         idxs = np.zeros(len(dataset.targets))
@@ -680,9 +681,16 @@ def get_dataset_fn(data_path, dataset_type):
 
 def get_flowers(args, preprocess_fns, split):
     assert split in ["train", "test"]
+    is_train = split == "train"
     preprocess_train, preprocess_val = preprocess_fns
 
-    dataset = datasets.Flowers102(root=args.flowers_102, transform=preprocess_val, download=True, split=split)
+    if is_train:
+        preprocess_fn = preprocess_train
+    else:
+        preprocess_fn = preprocess_val
+
+    dataset = datasets.Flowers102(root=args.flowers_102, transform=preprocess_fn, download=True, split=split)
+    print(preprocess_fn)
     
     sampler = None
 
@@ -698,9 +706,15 @@ def get_flowers(args, preprocess_fns, split):
 
 def get_food(args, preprocess_fns, split):
     assert split in ["train", "test"]
+    is_train = split == "train"
     preprocess_train, preprocess_val = preprocess_fns
+    if is_train:
+        preprocess_fn = preprocess_train
+    else:
+        preprocess_fn = preprocess_val
 
-    dataset = datasets.Food101(root=args.food_101, transform=preprocess_val, download=True, split=split)
+    dataset = datasets.Food101(root=args.food_101, transform=preprocess_fn, download=True, split=split)
+    print(preprocess_fn)
     
     sampler = None
 
@@ -715,9 +729,15 @@ def get_food(args, preprocess_fns, split):
 
 def get_stanford(args, preprocess_fns, split):
     assert split in ["train", "test"]
+    is_train = split == "train"
     preprocess_train, preprocess_val = preprocess_fns
+    if is_train:
+        preprocess_fn = preprocess_train
+    else:
+        preprocess_fn = preprocess_val
 
-    dataset = datasets.StanfordCars(root=args.stanford, transform=preprocess_val, download=False, split=split)
+    dataset = datasets.StanfordCars(root=args.stanford, transform=preprocess_fn, download=False, split=split)
+    print(preprocess_fn)
     # if split == "train":
     #     train_files = [os.path.join(args.stanford, f) for f in os.listdir(args.stanford) if f.startswith('train')]
     #     dataset = MultiParquetDataset(train_files, transform=preprocess_val)
@@ -740,12 +760,16 @@ def get_cifar(args, preprocess_fns, split, version):
     assert split in ["train", "test"]
     is_train = split == "train"
     preprocess_train, preprocess_val = preprocess_fns
+    if is_train:
+        preprocess_fn = preprocess_train
+    else:
+        preprocess_fn = preprocess_val
 
     if version == '10':
-        dataset = datasets.CIFAR10(root=args.cifar10, transform=preprocess_val, download=True, train=is_train)
+        dataset = datasets.CIFAR10(root=args.cifar10, transform=preprocess_fn, download=True, train=is_train)
     elif version == '100':
-        dataset = datasets.CIFAR100(root=args.cifar100, transform=preprocess_val, download=True, train=is_train)
-
+        dataset = datasets.CIFAR100(root=args.cifar100, transform=preprocess_fn, download=True, train=is_train)
+    print(preprocess_fn)
     sampler = None
 
     dataloader = torch.utils.data.DataLoader(
@@ -855,12 +879,16 @@ def get_flickr(args, preprocess_fn, tokenizer):
 
 def get_pets(args, preprocess_fns, split):
     assert split in ["train", "test"]
+    preprocess_train, preprocess_val = preprocess_fns
+    if split == "train":
+        preprocess_fn = preprocess_train
+    else:
+        preprocess_fn = preprocess_val
     if split == "train":
         split = "trainval"
-    preprocess_train, preprocess_val = preprocess_fns
 
-    dataset = datasets.OxfordIIITPet(root=args.pets, target_types='category', transform=preprocess_val, download=True, split=split)
-    
+    dataset = datasets.OxfordIIITPet(root=args.pets, target_types='category', transform=preprocess_fn, download=True, split=split)
+    print(preprocess_fn)
     sampler = None
 
     dataloader = torch.utils.data.DataLoader(
