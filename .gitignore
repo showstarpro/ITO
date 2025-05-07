@@ -5,7 +5,14 @@ features/
 results/
 
 tests/data/
+src/script.sh
+src/openclip_transformer.py
+src/test_data.py
+src/test.py
+src/train.sh
+src/val.sh
 *.pt
+*.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

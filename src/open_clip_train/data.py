@@ -150,7 +150,7 @@ def get_imagenet(args, preprocess_fns, split):
         assert data_path
 
         dataset = datasets.ImageFolder(data_path, transform=preprocess_fn)
-    print(preprocess_fn)
+    # print(preprocess_fn)
 
     if is_train:
         idxs = np.zeros(len(dataset.targets))
@@ -524,6 +524,7 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
     else:
         pipeline.extend([
             wds.select(filter_no_caption_or_no_image),
+            wds.shuffle(40960),
             wds.decode("pilrgb", handler=log_and_continue),
             wds.rename(image="jpg;png;jpeg;webp", text="txt"),
             wds.map_dict(image=preprocess_img, text=lambda text: tokenizer(text)[0]),
