@@ -1,8 +1,6 @@
-# ITO: Multi-View Alignment and Training-Time Fusion for Image-Text Pretraining
+# [NeurIPS 2026] ITO: Multi-View Alignment and Training-Time Fusion for Image-Text Pretraining
 
 Hanpeng Liu, Zidan Wang, Shuoxi Zhang, Zonglin Zhao, Zihao Bo, Rinyoichi Takezoe, Kaiwen Long, Yaqian Li, Kun He
-
-**NeurIPS 2026**
 
 Official PyTorch implementation of **ITO**, built on [OpenCLIP](https://github.com/mlfoundations/open_clip).
 
