@@ -28,7 +28,7 @@ inference cost and the same interface for zero-shot classification, retrieval, o
 
 The training objective is
 
-$$\mathcal{L} = \mathcal{L}_{\mathrm{Align}} + \lambda\,\mathcal{L}_{\mathrm{Fusion}}, \qquad \lambda = 2 \text{ by default.}$$
+$$\mathcal{L} = \mathcal{L}_{\mathrm{Align}} + \lambda*\mathcal{L}_{\mathrm{Fusion}}, \qquad \lambda = 2 \text{ by default.}$$
 
 ## Results
 
