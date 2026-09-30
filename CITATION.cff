@@ -1,0 +1,55 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: "ITO"
+authors:
+  - family-names: Liu
+    given-names: Hanpeng
+  - family-names: Wang
+    given-names: Zidan
+  - family-names: Zhang
+    given-names: Shuoxi
+  - family-names: Zhao
+    given-names: Zonglin
+  - family-names: Bo
+    given-names: Zihao
+  - family-names: Takezoe
+    given-names: Rinyoichi
+  - family-names: Long
+    given-names: Kaiwen
+  - family-names: Li
+    given-names: Yaqian
+  - family-names: He
+    given-names: Kun
+repository-code: "https://github.com/showstarpro/ITO"
+license: MIT
+preferred-citation:
+  type: conference-paper
+  title: "ITO: Multi-View Alignment and Training-Time Fusion for Image-Text Pretraining"
+  authors:
+    - family-names: Liu
+      given-names: Hanpeng
+    - family-names: Wang
+      given-names: Zidan
+    - family-names: Zhang
+      given-names: Shuoxi
+    - family-names: Zhao
+      given-names: Zonglin
+    - family-names: Bo
+      given-names: Zihao
+    - family-names: Takezoe
+      given-names: Rinyoichi
+    - family-names: Long
+      given-names: Kaiwen
+    - family-names: Li
+      given-names: Yaqian
+    - family-names: He
+      given-names: Kun
+  collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+  year: 2026
+references:
+  - type: software
+    title: OpenCLIP
+    authors:
+      - name: "Ilharco, Gabriel and Wortsman, Mitchell and Wightman, Ross and others"
+    doi: 10.5281/zenodo.5143773
+    url: "https://github.com/mlfoundations/open_clip"
