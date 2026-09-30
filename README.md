@@ -94,7 +94,6 @@ YFCC15M_DIR=/path/to/yfcc15m IMAGENET_VAL=/path/to/imagenet/val bash scripts/ito
 Set `NPROC_PER_NODE` to change the number of GPUs, and `NNODES` / `NODE_RANK` / `MASTER_ADDR` / `MASTER_PORT` for
 multi-node runs of the YFCC15M script. If you change the GPU count, adjust `--batch-size` to keep the global batch size.
 Extra arguments are forwarded to `open_clip_train.main`, e.g. `--report-to wandb` or `--resume /path/to/ckpt.pt`.
-If you use wandb, log in with `wandb login` or set `WANDB_API_KEY`.
 
 ITO adds the following arguments to the OpenCLIP trainer:
 
