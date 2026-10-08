@@ -7,13 +7,13 @@ name = "open_clip_torch"
 # Built on OpenCLIP, see https://github.com/mlfoundations/open_clip?tab=readme-ov-file#citing for its authors
 authors = [
     {name = "Hanpeng Liu"},
+    {name = "Yaqian Li"},
     {name = "Zidan Wang"},
     {name = "Shuoxi Zhang"},
     {name = "Zonglin Zhao"},
     {name = "Zihao Bo"},
     {name = "Rinyoichi Takezoe"},
     {name = "Kaiwen Long"},
-    {name = "Yaqian Li"},
     {name = "Kun He"},
 ]
 description = "Open reproduction of consastive language-image pretraining (CLIP) and related."

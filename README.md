@@ -1,6 +1,6 @@
 # [NeurIPS 2026] ITO: Multi-View Alignment and Training-Time Fusion for Image-Text Pretraining
 
-Hanpeng Liu, Zidan Wang, Shuoxi Zhang, Zonglin Zhao, Zihao Bo, Rinyoichi Takezoe, Kaiwen Long, Yaqian Li, Kun He
+Hanpeng Liu, Yaqian Li, Zidan Wang, Shuoxi Zhang, Zonglin Zhao, Zihao Bo, Rinyoichi Takezoe, Kaiwen Long, Kun He
 
 Official PyTorch implementation of **ITO**, built on [OpenCLIP](https://github.com/mlfoundations/open_clip).
 
@@ -159,7 +159,7 @@ In the code, the fusion module and its outputs are named `sentence_*` (e.g. `sen
 ```bibtex
 @inproceedings{liu2026ito,
   title     = {ITO: Multi-View Alignment and Training-Time Fusion for Image-Text Pretraining},
-  author    = {Liu, Hanpeng and Wang, Zidan and Zhang, Shuoxi and Zhao, Zonglin and Bo, Zihao and Takezoe, Rinyoichi and Long, Kaiwen and Li, Yaqian and He, Kun},
+  author    = {Liu, Hanpeng and Li, Yaqian and Wang, Zidan and Zhang, Shuoxi and Zhao, Zonglin and Bo, Zihao and Takezoe, Rinyoichi and Long, Kaiwen and He, Kun},
   booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
   year      = {2026}
 }
