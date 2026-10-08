@@ -107,6 +107,7 @@ figure { margin: 0; display: grid; gap: 12px; }
 .plate { background: var(--plate); border: 1px solid var(--line); border-radius: 14px; padding: clamp(10px, 2vw, 22px); }
 figcaption { font-size: 14.5px; color: var(--muted); max-width: var(--read); line-height: 1.55; }
 figcaption b { color: var(--ink); font-weight: 600; }
+figcaption.center { margin-inline: auto; text-align: center; }
 
 /* ---------- sections ---------- */
 section { padding-block: 64px 0; display: grid; gap: 22px; }
@@ -269,7 +270,7 @@ footer .wide { border-top: 1px solid var(--line); padding-top: 22px; display: fl
   <div class="wide" style="margin-top: 44px;">
     <figure>
       <div class="plate"><img src="static/ito_framework.png" alt="ITO framework: each image is augmented into two views and encoded with the image encoder; captions go through the text encoder. A multiple alignment loss contrasts every image view with the text. Image and text tokens of each view are concatenated and passed through a multimodal fusion module, whose outputs are trained with a multi-positive fusion loss." width="2000" height="967"></div>
-      <figcaption><b>Overview of ITO.</b> Multiple augmented image–text pairs derived from the same sample enrich instance-level alignment, while training-time fusion encourages the encoders to produce features that are compatible under fusion. The fusion module is used only during training and discarded at inference.</figcaption>
+      <figcaption class="center"><b>Overview of ITO.</b> Multiple augmented image–text pairs derived from the same sample enrich instance-level alignment, while training-time fusion encourages the encoders to produce features that are compatible under fusion. The fusion module is used only during training and discarded at inference.</figcaption>
     </figure>
   </div>
 
