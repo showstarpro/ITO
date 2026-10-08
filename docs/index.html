@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="ITO (NeurIPS 2026): multi-view alignment and training-time fusion for image-text pretraining. The fusion module is used only in training, so inference cost stays identical to CLIP.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ITO: Multi-View Alignment and Training-Time Fusion for Image-Text Pretraining">
+<meta property="og:description" content="ITO (NeurIPS 2026): multi-view alignment and training-time fusion for image-text pretraining. The fusion module is used only in training, so inference cost stays identical to CLIP.">
+<meta property="og:url" content="https://showstarpro.github.io/ITO/">
+<meta property="og:image" content="https://showstarpro.github.io/ITO/static/ito_framework.png">
+<meta name="twitter:card" content="summary_large_image">
+<title>ITO · NeurIPS 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: one reading column (~68ch) with a wider breakout track for figures, diagrams and tables.
+   Color: the view palette of the paper's own framework figure (view 1 violet, view 2 teal, text amber, fusion cyan). */
+:root {
+  --bg: #F4F6F7;
+  --surface: #FFFFFF;
+  --ink: #141A1E;
+  --muted: #56626B;
+  --line: #D9E0E4;
+  --view1: #6E56CF;
+  --view2: #13807B;
+  --text: #B9740A;
+  --fuse: #0C88A8;
+  --accent: #13807B;
+  --plate: #FFFFFF;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --read: 68ch;
+  --wide: 1080px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1215; --surface: #141B1F; --ink: #E4EAED; --muted: #93A1AA; --line: #26323A;
+    --view1: #A592F2; --view2: #46C1B9; --text: #EDB040; --fuse: #45C3E3; --accent: #46C1B9;
+    --plate: #F1F4F5; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1215; --surface: #141B1F; --ink: #E4EAED; --muted: #93A1AA; --line: #26323A;
+  --view1: #A592F2; --view2: #46C1B9; --text: #EDB040; --fuse: #45C3E3; --accent: #46C1B9;
+  --plate: #F1F4F5; color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+sup { font-size: 0.68em; line-height: 0; }
+
+.page { padding-inline: 20px; padding-block: 56px 40px; }
+.col { max-width: var(--read); margin-inline: auto; }
+.wide { max-width: var(--wide); margin-inline: auto; }
+
+/* ---------- hero ---------- */
+.hero { display: grid; gap: 22px; text-align: left; }
+.venue {
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); display: flex; align-items: center; gap: 10px;
+}
+.venue::before { content: ""; width: 28px; height: 2px; background: var(--accent); }
+h1 { margin: 0; font-family: var(--font-display); font-weight: 800; line-height: 1.02; text-wrap: balance; }
+h1 .name {
+  display: block; font-size: clamp(64px, 12vw, 128px); letter-spacing: -0.04em;
+  background: linear-gradient(100deg, var(--view1) 0%, var(--view2) 55%, var(--text) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  padding-bottom: 0.06em;
+}
+h1 .sub { display: block; font-size: clamp(24px, 3.6vw, 38px); font-weight: 700; letter-spacing: -0.015em; margin-top: 10px; max-width: 24ch; }
+.tldr { font-size: 19px; color: var(--muted); max-width: 58ch; margin: 0; text-wrap: pretty; }
+.tldr strong { color: var(--ink); font-weight: 600; }
+
+.authors { display: grid; gap: 10px; font-size: 16px; }
+.author-list { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; padding: 0; list-style: none; font-weight: 500; }
+.affils { margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 14.5px; display: grid; gap: 2px; }
+.notes { color: var(--muted); font-size: 13.5px; margin: 0; }
+
+.links { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px;
+  font: 500 15px/1 var(--font-body); text-decoration: none; border: 1px solid var(--line);
+  color: var(--ink); background: var(--surface); transition: border-color .15s, transform .15s;
+}
+.btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.is-disabled { color: var(--muted); border-style: dashed; cursor: default; }
+.btn.is-disabled:hover { border-color: var(--line); transform: none; }
+.btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+/* ---------- figures ---------- */
+figure { margin: 0; display: grid; gap: 12px; }
+.plate { background: var(--plate); border: 1px solid var(--line); border-radius: 14px; padding: clamp(10px, 2vw, 22px); }
+figcaption { font-size: 14.5px; color: var(--muted); max-width: var(--read); line-height: 1.55; }
+figcaption b { color: var(--ink); font-weight: 600; }
+
+/* ---------- sections ---------- */
+section { padding-block: 64px 0; display: grid; gap: 22px; }
+.label { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin: 0; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 4vw, 38px); line-height: 1.12; letter-spacing: -0.02em; margin: 4px 0 0; text-wrap: balance; }
+h3 { font-family: var(--font-display); font-weight: 700; font-size: 21px; line-height: 1.25; margin: 0; text-wrap: balance; }
+p { margin: 0; text-wrap: pretty; }
+.prose { display: grid; gap: 16px; }
+.head { display: grid; gap: 4px; }
+
+/* method: two components */
+.parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 18px; }
+.part { display: grid; gap: 10px; align-content: start; padding: 22px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); min-width: 0; }
+.part .tag { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+.part p { font-size: 16px; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: 0.05em; margin-right: 6px; }
+
+/* fused sequence diagram */
+.seq { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: grid; gap: 16px; }
+.seq-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto auto; gap: 14px; align-items: center; }
+.seq-name { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+.bar { display: flex; height: 34px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); min-width: 0; }
+.bar > span { display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; color: var(--bg); }
+.cls { flex: 0 0 46px; font-weight: 500; }
+.patch { flex: 196 1 0; }
+.txt { flex: 77 1 0; color: var(--ink) !important; }
+.v1 .cls { background: var(--view1); }
+.v1 .patch { background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--view1) 70%, transparent) 0 7px, color-mix(in srgb, var(--view1) 45%, transparent) 7px 8px); }
+.v2 .cls { background: var(--view2); }
+.v2 .patch { background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--view2) 70%, transparent) 0 7px, color-mix(in srgb, var(--view2) 45%, transparent) 7px 8px); }
+.txt { background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--text) 55%, transparent) 0 7px, color-mix(in srgb, var(--text) 30%, transparent) 7px 8px); }
+.fuse {
+  font-family: var(--font-mono); font-size: 12.5px; padding: 7px 11px; border-radius: 8px; white-space: nowrap;
+  border: 1.5px solid var(--fuse); color: var(--fuse);
+}
+.out { font-family: var(--font-display); font-weight: 700; font-size: 17px; min-width: 44px; text-align: center; padding: 4px 10px; border-radius: 8px; border: 1.5px solid currentColor; }
+.v1 .out { color: var(--view1); }
+.v2 .out { color: var(--view2); }
+.seq-scale { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto auto; gap: 14px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.seq-scale .ticks { display: flex; }
+.seq-scale .ticks span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seq-note { font-size: 15px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+.seq-note b { color: var(--ink); font-weight: 600; }
+
+/* train vs inference */
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 18px; }
+.mode { display: grid; gap: 12px; align-content: start; padding: 20px 22px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.mode h3 { font-size: 18px; }
+.mode .stack { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: var(--font-mono); font-size: 13px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+.chip.fz { border-color: var(--fuse); color: var(--fuse); }
+.chip.gone { border-style: dashed; color: var(--muted); text-decoration: line-through; background: transparent; }
+.mode p { font-size: 15px; color: var(--muted); }
+.formula { font-family: var(--font-display); font-size: 22px; font-weight: 500; letter-spacing: 0.01em; }
+.formula sub { font-family: var(--font-body); font-size: 0.55em; font-weight: 500; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+th, td { padding: 10px 14px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
+tbody tr:last-child td { border-bottom: 0; }
+td.ito, th.ito { color: var(--ink); font-weight: 600; }
+td .gain { color: var(--accent); font-weight: 500; font-size: 13px; margin-left: 6px; }
+td .loss { color: var(--muted); font-size: 13px; margin-left: 6px; }
+.na { color: var(--muted); }
+tr.group td { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); padding-block: 7px; }
+.mllm th:not(:first-child):not(:nth-child(2)) { writing-mode: horizontal-tb; }
+.mllm td:nth-child(2), .mllm th:nth-child(2) { text-align: left; }
+b.best { font-weight: 700; }
+.tbl-note { font-size: 14px; color: var(--muted); }
+
+.results { display: grid; gap: 40px; }
+.block { display: grid; gap: 14px; }
+.block > p { max-width: var(--read); }
+
+.split { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 860px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.obs { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; counter-reset: obs; }
+.obs li { padding-left: 34px; position: relative; font-size: 16px; }
+.obs li::before {
+  counter-increment: obs; content: counter(obs, lower-roman);
+  position: absolute; left: 0; top: 1px; font-family: var(--font-mono); font-size: 13px; color: var(--accent);
+  width: 24px; height: 24px; border: 1px solid var(--accent); border-radius: 50%; display: grid; place-items: center;
+}
+
+/* citation */
+.bib { position: relative; }
+pre {
+  margin: 0; padding: 20px 22px; overflow-x: auto; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--surface); font: 13.5px/1.6 var(--font-mono); color: var(--ink);
+}
+.copy {
+  position: absolute; top: 12px; right: 12px; font: 500 13px/1 var(--font-body); padding: 7px 12px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer;
+}
+.copy:hover { border-color: var(--accent); }
+
+footer { padding-block: 64px 8px; color: var(--muted); font-size: 14px; }
+footer .wide { border-top: 1px solid var(--line); padding-top: 22px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .page { padding-inline: 16px; padding-block: 36px 28px; }
+  section { padding-block: 48px 0; }
+  .seq { padding: 16px; }
+  .seq-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "bar bar" "fuse out"; gap: 8px 10px; }
+  .seq-row .seq-name { grid-area: name; }
+  .seq-row .bar { grid-area: bar; }
+  .seq-row .fuse { grid-area: fuse; justify-self: start; }
+  .seq-row .out { grid-area: out; }
+  .seq-scale { display: none; }
+  .bar > span.txt, .bar > span.patch { font-size: 10.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } .btn:hover { transform: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="col hero">
+    <p class="venue">NeurIPS 2026</p>
+    <h1><span class="name">ITO</span><span class="sub">Multi-View Alignment and Training-Time Fusion for Image-Text Pretraining</span></h1>
+
+    <div class="authors">
+      <ul class="author-list">
+        <li>Hanpeng Liu<sup>1,2,∗</sup></li>
+        <li>Yaqian Li<sup>2,†</sup></li>
+        <li>Zidan Wang<sup>1</sup></li>
+        <li>Shuoxi Zhang<sup>3</sup></li>
+        <li>Zonglin Zhao<sup>1</sup></li>
+        <li>Zihao Bo<sup>2</sup></li>
+        <li>Rinyoichi Takezoe<sup>2</sup></li>
+        <li>Kaiwen Long<sup>2</sup></li>
+        <li>Kun He<sup>1,†</sup></li>
+      </ul>
+      <ul class="affils">
+        <li><sup>1</sup> School of Computer Science and Technology, Huazhong University of Science and Technology</li>
+        <li><sup>2</sup> Li Auto Inc.</li>
+        <li><sup>3</sup> Institute of AI for Industries, Chinese Academy of Sciences</li>
+      </ul>
+      <p class="notes"><sup>∗</sup> Work done as a research intern at Li Auto Inc. &nbsp; <sup>†</sup> Corresponding authors</p>
+    </div>
+
+    <nav class="links" aria-label="Paper resources">
+      <span class="btn is-disabled" aria-disabled="true" title="The paper link will be added after publication">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6V2zm8 1.5V8h4.5L14 3.5zM8.5 12v1.6h7V12h-7zm0 3.5v1.6h7v-1.6h-7z"/></svg>Paper (coming soon)
+      </span>
+      <a class="btn primary" href="https://github.com/showstarpro/ITO">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.62 1.59.23 2.76.11 3.05.74.8 1.18 1.83 1.18 3.08 0 4.41-2.69 5.39-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>Code
+      </a>
+      <a class="btn" href="#citation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h6v6H8.2c0 2 .9 3.3 2.8 3.9V18c-3.9-.6-6-3.3-6-7.6V5zm8 0h6v6h-2.8c0 2 .9 3.3 2.8 3.9V18c-3.9-.6-6-3.3-6-7.6V5z"/></svg>BibTeX
+      </a>
+    </nav>
+
+    <p class="tldr"><strong>Two augmented views per image, and a small fusion Transformer that shapes both encoders during training.</strong> The fusion module is removed before deployment, so a trained ITO model is a standard CLIP dual encoder with the same inference cost.</p>
+  </header>
+
+  <div class="wide" style="margin-top: 44px;">
+    <figure>
+      <div class="plate"><img src="static/ito_framework.png" alt="ITO framework: each image is augmented into two views and encoded with the image encoder; captions go through the text encoder. A multiple alignment loss contrasts every image view with the text. Image and text tokens of each view are concatenated and passed through a multimodal fusion module, whose outputs are trained with a multi-positive fusion loss." width="2000" height="967"></div>
+      <figcaption><b>Overview of ITO.</b> Multiple augmented image–text pairs derived from the same sample enrich instance-level alignment, while training-time fusion encourages the encoders to produce features that are compatible under fusion. The fusion module is used only during training and discarded at inference.</figcaption>
+    </figure>
+  </div>
+
+  <section class="col" id="abstract">
+    <div class="head"><p class="label">Abstract</p></div>
+    <div class="prose">
+      <p>Image–text contrastive pretraining has become a dominant paradigm for visual representation learning, yet existing methods often yield representations that remain partially organized by modality rather than by semantics. We propose <strong>ITO</strong>, a framework addressing this limitation through two complementary mechanisms with distinct roles. <em>Multimodal multiple alignment</em> enriches supervision by constructing diverse cross-modal correspondences from multi-view image augmentations, providing the primary source of discriminative gain. A lightweight <em>training-time multimodal fusion</em> module then acts as a training-time regularizer, encouraging the encoders to produce features that are compatible under fusion.</p>
+      <p>Crucially, the fusion module is discarded at inference, preserving the efficiency of standard dual-encoder architectures while incurring training-time overhead only. Extensive experiments across pretraining scales from millions to billions of image–text pairs show that ITO outperforms strong contrastive baselines at moderate scale and yields consistent gains over CLIP under identical data, backbone, and compute at the 100M–1B scale, on classification, retrieval, and multimodal benchmarks. Controlled comparisons show that these gains are not explained by additional training compute or image augmentation alone. Our analysis further reveals that the contribution of fusion grows with data scale and that it stabilizes optimization, mitigating the late-stage overfitting commonly observed in aggressive contrastive learning.</p>
+    </div>
+  </section>
+
+  <section class="wide" id="method">
+    <div class="head col" style="margin-inline: 0;">
+      <p class="label">Method</p>
+      <h2>Two training signals, one CLIP encoder pair</h2>
+    </div>
+
+    <div class="parts">
+      <article class="part">
+        <span class="tag"><span class="swatch" style="background: var(--view1)"></span><span class="swatch" style="background: var(--view2)"></span>ℒ<sub>Align</sub></span>
+        <h3>Multimodal multiple alignment</h3>
+        <p>Each image is augmented twice (random resized crop with scale 0.5–1.0, color jitter, grayscale). Both views are contrasted with the same caption using the standard bidirectional InfoNCE loss, with the usual in-batch negatives. This doubles the cross-modal positives per sample and provides most of the accuracy gain.</p>
+      </article>
+      <article class="part">
+        <span class="tag"><span class="swatch" style="background: var(--fuse)"></span>ℒ<sub>Fusion</sub></span>
+        <h3>Training-time multimodal fusion</h3>
+        <p>For each view, image tokens and text tokens are concatenated and passed through a 2-layer Transformer with bidirectional self-attention. The output at the image <code>[CLS]</code> position is the fused embedding. Gradients flow through the fusion module into both encoders without stop-gradient, so the encoders must produce tokens that stay discriminative after cross-modal attention.</p>
+      </article>
+    </div>
+
+    <figure class="seq" aria-label="Structure of the fused token sequence for each image view">
+      <div class="seq-scale" aria-hidden="true">
+        <span></span>
+        <div class="ticks"><span style="flex: 0 0 46px;">1</span><span style="flex: 196 1 0;">196 patch tokens (ViT-B/16, 224 px)</span><span style="flex: 77 1 0;">77 text tokens</span></div>
+        <span></span><span></span>
+      </div>
+      <div class="seq-row v1">
+        <span class="seq-name">view 1</span>
+        <div class="bar"><span class="cls">CLS</span><span class="patch">image patches</span><span class="txt">SOT … EOT · pad</span></div>
+        <span class="fuse">→ fusion ×2 →</span>
+        <span class="out">S<sub>1</sub></span>
+      </div>
+      <div class="seq-row v2">
+        <span class="seq-name">view 2</span>
+        <div class="bar"><span class="cls">CLS</span><span class="patch">image patches</span><span class="txt">SOT … EOT · pad</span></div>
+        <span class="fuse">→ fusion ×2 →</span>
+        <span class="out">S<sub>2</sub></span>
+      </div>
+      <figcaption class="seq-note"><b>Fusion loss.</b> The fused embeddings S<sub>1</sub> and S<sub>2</sub> of the same image–text pair are positives. Every other fused embedding in the batch, from either view, is a negative. Padding tokens are masked out as attention keys.</figcaption>
+    </figure>
+
+    <div class="modes">
+      <div class="mode">
+        <h3>Training</h3>
+        <div class="stack">
+          <span class="chip">Image encoder × 2 views</span>
+          <span class="chip">Text encoder</span>
+          <span class="chip fz">Fusion module · 2 layers</span>
+        </div>
+        <p class="formula" aria-label="L equals L align plus lambda times L fusion">ℒ = ℒ<sub>Align</sub> + λ · ℒ<sub>Fusion</sub></p>
+        <p>λ = 2 by default. Accuracy follows an inverted U in λ: it peaks at 2, and λ = 6 falls below the alignment-only setting.</p>
+      </div>
+      <div class="mode">
+        <h3>Inference</h3>
+        <div class="stack">
+          <span class="chip">Image encoder</span>
+          <span class="chip">Text encoder</span>
+          <span class="chip gone">Fusion module</span>
+        </div>
+        <p class="formula">Same cost as CLIP</p>
+        <p>The fusion module is dropped. The remaining encoders are a drop-in replacement for any CLIP model in zero-shot classification, retrieval, or as the vision backbone of a multimodal LLM.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wide" id="results">
+    <div class="head">
+      <p class="label">Results</p>
+      <h2>Consistent gains from 3M to 1B image–text pairs</h2>
+    </div>
+
+    <div class="results">
+      <div class="block">
+        <h3>Zero-shot classification</h3>
+        <p>Average top-1 accuracy over 26 benchmarks, following the EVA-CLIP protocol. ViT-B/16, 30 epochs unless noted. All baselines are reproduced on the same data.</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th scope="col">Pretraining data</th><th scope="col">CLIP</th><th scope="col">SLIP</th><th scope="col">SigLIP</th><th scope="col">FLAIR</th><th scope="col" class="ito">ITO</th></tr></thead>
+            <tbody>
+              <tr><td>CC3M</td><td>19.3</td><td>21.4</td><td>19.3</td><td>23.2</td><td class="ito">24.9<span class="gain">+5.6</span></td></tr>
+              <tr><td>CC12M</td><td>34.1</td><td>36.0</td><td>35.0</td><td>35.5</td><td class="ito">38.4<span class="gain">+4.3</span></td></tr>
+              <tr><td>YFCC15M</td><td>30.5</td><td class="na">–</td><td class="na">–</td><td class="na">–</td><td class="ito">34.5<span class="gain">+4.0</span></td></tr>
+              <tr><td>Laion100M</td><td>53.5</td><td>51.3</td><td class="na">–</td><td class="na">–</td><td class="ito">56.1<span class="gain">+2.6</span></td></tr>
+              <tr><td>DataComp-1B, 1 epoch</td><td>54.2</td><td class="na">–</td><td class="na">–</td><td class="na">–</td><td class="ito">56.6<span class="gain">+2.4</span></td></tr>
+              <tr class="group"><td colspan="6">Scaling on DataComp-1B</td></tr>
+              <tr><td>ViT-B/16, 10 epochs</td><td>63.7</td><td class="na">–</td><td class="na">–</td><td class="na">–</td><td class="ito">64.9<span class="gain">+1.2</span></td></tr>
+              <tr><td>ViT-L/16, 1 epoch</td><td>60.7</td><td class="na">–</td><td class="na">–</td><td class="na">–</td><td class="ito">63.0<span class="gain">+2.3</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tbl-note">Gains are relative to CLIP. Billion-scale reruns of SLIP, SigLIP and FLAIR were beyond the compute budget, so CLIP is the controlled reference at large scale.</p>
+      </div>
+
+      <div class="block">
+        <h3>Where the gain comes from</h3>
+        <p>Adding the two components to OpenCLIP one at a time. Multiple alignment gives the largest improvement. Fusion adds a smaller gain that grows with data scale: +0.6 zero-shot at 15M and +1.1 at 1B.</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th scope="col">Setting</th><th scope="col">ZS IN-1k</th><th scope="col">Linear IN-1k</th><th scope="col">COCO I→T</th><th scope="col">COCO T→I</th></tr></thead>
+            <tbody>
+              <tr class="group"><td colspan="5">YFCC15M</td></tr>
+              <tr><td>OpenCLIP</td><td>36.4</td><td>51.8</td><td>26.4</td><td>15.1</td></tr>
+              <tr><td>+ multiple alignment (λ = 0)</td><td>43.7<span class="gain">+7.3</span></td><td>60.2<span class="gain">+8.4</span></td><td>30.6<span class="gain">+4.2</span></td><td>19.6<span class="gain">+4.5</span></td></tr>
+              <tr><td class="ito">+ training-time fusion (λ = 2)</td><td class="ito">44.3<span class="gain">+0.6</span></td><td class="ito">60.5<span class="gain">+0.3</span></td><td class="ito">30.8<span class="gain">+0.2</span></td><td>19.5<span class="loss">−0.1</span></td></tr>
+              <tr class="group"><td colspan="5">DataComp-1B, 1 epoch</td></tr>
+              <tr><td>OpenCLIP</td><td>63.1</td><td>67.4</td><td>47.1</td><td>29.5</td></tr>
+              <tr><td>+ multiple alignment (λ = 0)</td><td>64.8<span class="gain">+1.7</span></td><td>69.6<span class="gain">+2.2</span></td><td>49.0<span class="gain">+1.9</span></td><td>30.7<span class="gain">+1.2</span></td></tr>
+              <tr><td class="ito">+ training-time fusion (λ = 2)</td><td class="ito">65.9<span class="gain">+1.1</span></td><td class="ito">69.9<span class="gain">+0.3</span></td><td class="ito">49.3<span class="gain">+0.3</span></td><td class="ito">31.3<span class="gain">+0.6</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tbl-note">Each gain is relative to the row above it.</p>
+      </div>
+
+      <div class="block">
+        <h3>As the vision encoder of a multimodal LLM</h3>
+        <p>LLaVA-1.5 protocol with Vicuna-7B and a frozen ViT-B/16 vision encoder pretrained by CLIP or ITO. ITO is better on all 13 benchmarks at 100M scale and on 11 of 13 at 1B scale.</p>
+        <div class="tbl-wrap">
+          <table class="mllm">
+            <thead><tr><th scope="col">Data</th><th scope="col">Encoder</th><th scope="col">VQAv2</th><th scope="col">GQA</th><th scope="col">T-VQA</th><th scope="col">SciQA-I</th><th scope="col">VizWiz</th><th scope="col">MMB-en</th><th scope="col">MMB-cn</th><th scope="col">MMVet</th><th scope="col">POPE-r</th><th scope="col">POPE-p</th><th scope="col">POPE-a</th><th scope="col">MMMU</th><th scope="col">MMStar</th></tr></thead>
+            <tbody>
+              <tr><td rowspan="2">Laion100M</td><td>CLIP</td><td>66.53</td><td>56.36</td><td>47.55</td><td>65.44</td><td>36.80</td><td>53.69</td><td>46.13</td><td>18.30</td><td>84.09</td><td>82.90</td><td>76.40</td><td>33.60</td><td>28.87</td></tr>
+              <tr><td class="ito">ITO</td><td class="ito">68.47</td><td class="ito">57.23</td><td class="ito">48.71</td><td class="ito">66.29</td><td class="ito">44.25</td><td class="ito">54.12</td><td class="ito">46.65</td><td class="ito">19.80</td><td class="ito">84.74</td><td class="ito">83.63</td><td class="ito">77.30</td><td class="ito">33.90</td><td class="ito">29.13</td></tr>
+              <tr><td rowspan="2">DataComp-1B</td><td>CLIP</td><td>70.42</td><td>57.93</td><td>50.24</td><td>65.00</td><td class="ito">45.28</td><td>48.45</td><td>55.67</td><td>18.40</td><td>83.63</td><td>82.71</td><td>78.63</td><td class="ito">34.00</td><td>29.33</td></tr>
+              <tr><td class="ito">ITO</td><td class="ito">73.19</td><td class="ito">59.99</td><td class="ito">50.89</td><td class="ito">66.24</td><td>42.92</td><td class="ito">50.52</td><td class="ito">58.85</td><td class="ito">21.90</td><td class="ito">85.46</td><td class="ito">84.23</td><td class="ito">80.46</td><td>33.90</td><td class="ito">31.13</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tbl-note">Bold marks the better encoder in each column and data block. DataComp-1B uses the 10-epoch models.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wide" id="analysis">
+    <div class="head">
+      <p class="label">Analysis</p>
+      <h2>Fusion works as a regularizer</h2>
+    </div>
+    <div class="split">
+      <figure>
+        <div class="plate"><img src="static/training_curve.png" alt="Zero-shot ImageNet-1K accuracy from epoch 18 to 30 on YFCC15M. CLIP and SLIP peak at epoch 26 and then decline. ITO with lambda 0 peaks at epoch 28 and dips slightly. ITO with lambda 2 keeps improving to 44.3 at epoch 30." width="1400" height="819" loading="lazy"></div>
+        <figcaption><b>Late-stage training on YFCC15M</b> (ViT-B/16, zero-shot ImageNet-1K). CLIP and SLIP decline after their peak. Alignment alone (λ = 0) raises accuracy but still dips at the end. With fusion (λ = 2), accuracy holds through epoch 30.</figcaption>
+      </figure>
+      <div class="prose">
+        <p>The λ = 0 and λ = 2 variants differ only in the fusion module. Three observations point to fusion acting on optimization rather than adding a new source of supervision:</p>
+        <ol class="obs">
+          <li><strong>Its gain grows with scale and training length.</strong> Zero-shot ImageNet-1K improves by +0.6 at 15M and +1.1 at 1B. On YFCC15M, training for 60 instead of 30 epochs turns the COCO T→I change from −0.1 into +0.9.</li>
+          <li><strong>It suppresses late-stage overfitting,</strong> as the training curves show.</li>
+          <li><strong>Its effect is non-monotone in λ.</strong> Too strong a fusion signal (λ = 6, 43.2) falls below no fusion (λ = 0, 43.7).</li>
+        </ol>
+        <p>The gains are not explained by extra compute. On YFCC15M, CLIP trained for 60 epochs reaches 37.3 zero-shot, while ITO at 30 epochs reaches 44.3. Training ITO costs about 2.2× the time and 2.1–2.3× the peak GPU memory of OpenCLIP. Inference cost is unchanged.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="col" id="citation">
+    <div class="head">
+      <p class="label">Citation</p>
+      <h2>BibTeX</h2>
+    </div>
+    <div class="bib">
+      <pre id="bibtex">@inproceedings{liu2026ito,
+  title     = {ITO: Multi-View Alignment and Training-Time Fusion for Image-Text Pretraining},
+  author    = {Liu, Hanpeng and Li, Yaqian and Wang, Zidan and Zhang, Shuoxi and Zhao, Zonglin and Bo, Zihao and Takezoe, Rinyoichi and Long, Kaiwen and He, Kun},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2026}
+}</pre>
+      <button class="copy" id="copy-bib" type="button">Copy</button>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wide">
+      <span>Code built on <a href="https://github.com/mlfoundations/open_clip">OpenCLIP</a>. Released under the MIT License.</span>
+      <span>Contact: liyaqian@lixiang.com · brooklet60@hust.edu.cn</span>
+    </div>
+  </footer>
+</main>
+
+<script>
+(function () {
+  var btn = document.getElementById('copy-bib');
+  var pre = document.getElementById('bibtex');
+  function selectText() {
+    var range = document.createRange();
+    range.selectNodeContents(pre);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  function done(label) {
+    btn.textContent = label;
+    setTimeout(function () { btn.textContent = 'Copy'; }, 1800);
+  }
+  btn.addEventListener('click', function () {
+    var text = pre.textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done('Copied'); }, function () { selectText(); done('Press Ctrl+C'); });
+    } else {
+      selectText(); done('Press Ctrl+C');
+    }
+  });
+})();
+</script>
+</body>
+</html>
