@@ -110,7 +110,7 @@ figcaption b { color: var(--ink); font-weight: 600; }
 figcaption.center { margin-inline: auto; text-align: center; }
 
 /* ---------- sections ---------- */
-section { padding-block: 64px 0; display: grid; gap: 22px; }
+section { padding-block: 64px 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
 .label { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin: 0; }
 h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 4vw, 38px); line-height: 1.12; letter-spacing: -0.02em; margin: 4px 0 0; text-wrap: balance; }
 h3 { font-family: var(--font-display); font-weight: 700; font-size: 21px; line-height: 1.25; margin: 0; text-wrap: balance; }
@@ -196,11 +196,13 @@ b.best { font-weight: 700; }
 }
 
 /* citation */
-.bib { position: relative; }
+.bib { position: relative; min-width: 0; }
 pre {
   margin: 0; padding: 20px 22px; overflow-x: auto; border-radius: 14px; border: 1px solid var(--line);
   background: var(--surface); font: 13.5px/1.6 var(--font-mono); color: var(--ink);
+  max-width: 100%; white-space: pre; scrollbar-width: thin; scrollbar-color: var(--line) transparent;
 }
+pre#bibtex { padding-right: 84px; }
 .copy {
   position: absolute; top: 12px; right: 12px; font: 500 13px/1 var(--font-body); padding: 7px 12px;
   border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer;
